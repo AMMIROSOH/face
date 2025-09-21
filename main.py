@@ -2,81 +2,14 @@ from retinaface import RetinFace, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_S
 from multiprocessing import shared_memory
 import multiprocessing as mp
 from utils.utils import draw_fps
+from utils.retinaface import decode, decode_landm, py_cpu_nms
 from models.config import cfg_re50
 from utils.priorbox import PriorBox
 import numpy as np
 import cv2 as cv
+import torchvision
 import torch
 import time
-
-def decode(loc, priors, variances):
-    """Decode locations from predictions using priors to undo
-    the encoding we did for offset regression at train time.
-    Args:
-        loc (tensor): location predictions for loc layers,
-            Shape: [num_priors,4]
-        priors (tensor): Prior boxes in center-offset form.
-            Shape: [num_priors,4].
-        variances: (list[float]) Variances of priorboxes
-    Return:
-        decoded bounding box predictions
-    """
-
-    boxes = torch.cat((
-        priors[:, :2] + loc[:, :2] * variances[0] * priors[:, 2:],
-        priors[:, 2:] * torch.exp(loc[:, 2:] * variances[1])), 1)
-    boxes[:, :2] -= boxes[:, 2:] / 2
-    boxes[:, 2:] += boxes[:, :2]
-    return boxes
-def decode_landm(pre, priors, variances):
-    """Decode landm from predictions using priors to undo
-    the encoding we did for offset regression at train time.
-    Args:
-        pre (tensor): landm predictions for loc layers,
-            Shape: [num_priors,10]
-        priors (tensor): Prior boxes in center-offset form.
-            Shape: [num_priors,4].
-        variances: (list[float]) Variances of priorboxes
-    Return:
-        decoded landm predictions
-    """
-    landms = torch.cat((priors[:, :2] + pre[:, :2] * variances[0] * priors[:, 2:],
-                        priors[:, :2] + pre[:, 2:4] * variances[0] * priors[:, 2:],
-                        priors[:, :2] + pre[:, 4:6] * variances[0] * priors[:, 2:],
-                        priors[:, :2] + pre[:, 6:8] * variances[0] * priors[:, 2:],
-                        priors[:, :2] + pre[:, 8:10] * variances[0] * priors[:, 2:],
-                        ), dim=1)
-    return landms
-def py_cpu_nms(dets, thresh):
-    """Pure Python NMS baseline."""
-    x1 = dets[:, 0]
-    y1 = dets[:, 1]
-    x2 = dets[:, 2]
-    y2 = dets[:, 3]
-    scores = dets[:, 4]
-
-    areas = (x2 - x1 + 1) * (y2 - y1 + 1)
-    order = scores.argsort()[::-1]
-
-    keep = []
-    while order.size > 0:
-        i = order[0]
-        keep.append(i)
-        xx1 = np.maximum(x1[i], x1[order[1:]])
-        yy1 = np.maximum(y1[i], y1[order[1:]])
-        xx2 = np.minimum(x2[i], x2[order[1:]])
-        yy2 = np.minimum(y2[i], y2[order[1:]])
-
-        w = np.maximum(0.0, xx2 - xx1 + 1)
-        h = np.maximum(0.0, yy2 - yy1 + 1)
-        inter = w * h
-        ovr = inter / (areas[i] + areas[order[1:]] - inter)
-
-        inds = np.where(ovr <= thresh)[0]
-        order = order[inds + 1]
-
-    return keep
-
 
 def capture(shm, q_out):
     shm = shared_memory.SharedMemory(name=shm)
@@ -92,7 +25,6 @@ def capture(shm, q_out):
         while True:
             ret, frame_temp = cap.read()
             cv.resize(frame_temp, (640, 640), frame)
-            q_out.put("ready") 
     except Exception:
         print(Exception)
         q_out.put("stop")
@@ -113,11 +45,16 @@ def inference(shms: tuple, q_in, q_out):
     conf_out = np.ndarray((CONF_LENGTH), dtype=np.float32, buffer=shm_conf_out.buf)
     lands_out = np.ndarray((LANDS_LENGTH), dtype=np.float32, buffer=shm_lands_out.buf)
 
+    step = 0
+    step_size = 10
+
     while True:
-        msg = q_in.get()
-        if msg == "stop":
-            q_out.put(("stop", None))
-            break
+        if(step%step_size==0):
+            step = 0
+            msg = q_in.get()
+            if msg == "stop":
+                break
+        step+=1
 
         frame = np.array(frame_in, dtype=np.int32)            
         frame -= (104, 117, 123)
@@ -128,11 +65,11 @@ def inference(shms: tuple, q_in, q_out):
         loc_out[:] = loc[0]
         conf_out[:] = conf[0]
         lands_out[:] = landms[0]
-        q_out.put("ready")
 
 def postprocess(shms: tuple, q_in):
-    shm_frame_in, shm_loc_in, shm_conf_in, shm_lands_in = shms
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    shm_frame_in, shm_loc_in, shm_conf_in, shm_lands_in = shms
     shm_frame_in = shared_memory.SharedMemory(name=shm_frame_in)
     shm_loc_in = shared_memory.SharedMemory(name=shm_loc_in)
     shm_conf_in = shared_memory.SharedMemory(name=shm_conf_in)
@@ -143,12 +80,25 @@ def postprocess(shms: tuple, q_in):
     conf_in = np.ndarray((CONF_LENGTH), dtype=np.float32, buffer=shm_conf_in.buf)
     lands_in = np.ndarray((LANDS_LENGTH), dtype=np.float32, buffer=shm_lands_in.buf)
 
+    im_height, im_width, _ = frame_in.shape
+    priorbox = PriorBox(cfg_re50, image_size=(im_height, im_width))
+    priors = priorbox.forward().to(device)
+
+    scale_box = torch.tensor([im_width, im_height, im_width, im_height], device=device, dtype=torch.float32)
+    scale_lands = torch.tensor([im_width, im_height] * 5, device=device, dtype=torch.float32)
+
     time_prev, fps = time.time(), 0.0
 
+    step = 0
+    step_size = 10
+
     while True:
-        # msg = q_in.get()
-        # if msg == "stop":
-        #     break
+        if(step%step_size==0):
+            step = 0
+            msg = q_in.get()
+            if msg == "stop":
+                break
+        step+=1
 
         loc = loc_in.reshape((1, 16800, 4)).squeeze(0)
         conf = conf_in.reshape((1, 16800, 2)).squeeze(0)
@@ -156,44 +106,40 @@ def postprocess(shms: tuple, q_in):
 
         scores_all = conf[:, 1]
         inds = np.where(scores_all > 0.02)[0]
+        # todo: select topKs only if its needed < len(x)
         order = inds[np.argsort(scores_all[inds])[::-1][:5000]]
-        im_height, im_width, _ = frame_in.shape
         
         if order.size != 0:
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             loc = torch.from_numpy(loc[order]).to(device=device, dtype=torch.float32)
             lands = torch.from_numpy(lands[order]).to(device=device, dtype=torch.float32) 
-            scores = scores_all[order] 
+            scores = torch.from_numpy(scores_all[order])
 
+            # todo: remove copy()
+            priors_filtered = priors[torch.from_numpy(order)]
+            priors_filtered = priors_filtered.to(device)
 
-            priorbox = PriorBox(cfg_re50, image_size=(im_height, im_width))
-            priors = priorbox.forward()
-            priors = priors[torch.tensor(order.copy())]
-            priors = priors.to(device)
-            loc = loc.to(device)
-            lands = lands.to(device)
-            prior_data = priors.data
+            boxes = decode(loc, priors_filtered, cfg_re50['variance'])
+            boxes = boxes * scale_box
 
-            scale = torch.tensor([im_width, im_height, im_width, im_height], device=device, dtype=torch.float32)
-            boxes = decode(loc.data, prior_data, cfg_re50['variance'])
-            boxes = boxes * scale / 1
-            boxes = boxes.cpu().numpy()
-            landms = decode_landm(lands, prior_data, cfg_re50['variance'])
-            scale1 = torch.tensor([im_width, im_height] * 5, device=device, dtype=torch.float32)
-            landms = landms * scale1 / 1
-            landms = landms.cpu().detach().numpy()
+            landms = decode_landm(lands, priors_filtered, cfg_re50['variance'])
+            landms = landms * scale_lands
 
-            # do NMS
-            dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
-            keep = py_cpu_nms(dets, 0.4)
-            # keep = nms(dets, args.nms_threshold,force_cpu=args.cpu)
-            dets = dets[keep, :]
-            landms = landms[keep]
+            keep = torchvision.ops.nms(boxes, scores, 0.4)
+            if keep.numel() > 10:
+                keep = keep[:10]            
+            boxes = boxes[keep].cpu().numpy()
+            scores = scores[keep].cpu().numpy()
+            landms = landms[keep].cpu().numpy()
 
-            # keep top-K faster NMS
-            dets = dets[:10, :]
-            landms = landms[:10, :]
+            # # do NMS
+            # dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
+            # keep = py_cpu_nms(dets, 0.4)
+            # # keep = nms(dets, args.nms_threshold,force_cpu=args.cpu)
+            # dets = dets[keep, :]
+            # landms = landms[keep]
 
+            dets = np.hstack((scores, scores[:, np.newaxis])).astype(np.float32, copy=False)
+            # concatenate landms
             dets = np.concatenate((dets, landms), axis=1)
             for d in dets:
                 if d[4] < 0.6:
