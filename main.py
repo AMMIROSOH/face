@@ -45,17 +45,7 @@ def inference(shms: tuple, q_in, q_out):
     conf_out = np.ndarray((CONF_LENGTH), dtype=np.float32, buffer=shm_conf_out.buf)
     lands_out = np.ndarray((LANDS_LENGTH), dtype=np.float32, buffer=shm_lands_out.buf)
 
-    step = 0
-    step_size = 10
-
     while True:
-        if(step%step_size==0):
-            step = 0
-            msg = q_in.get()
-            if msg == "stop":
-                break
-        step+=1
-
         frame = np.array(frame_in, dtype=np.int32)            
         frame -= (104, 117, 123)
         frame = frame.transpose(2, 0, 1)
@@ -89,17 +79,8 @@ def postprocess(shms: tuple, q_in):
 
     time_prev, fps = time.time(), 0.0
 
-    step = 0
-    step_size = 10
 
     while True:
-        if(step%step_size==0):
-            step = 0
-            msg = q_in.get()
-            if msg == "stop":
-                break
-        step+=1
-
         loc = loc_in.reshape((1, 16800, 4)).squeeze(0)
         conf = conf_in.reshape((1, 16800, 2)).squeeze(0)
         lands = lands_in.reshape((1, 16800, 10)).squeeze(0)
@@ -112,8 +93,8 @@ def postprocess(shms: tuple, q_in):
         if order.size != 0:
             loc = torch.from_numpy(loc[order]).to(device=device, dtype=torch.float32)
             lands = torch.from_numpy(lands[order]).to(device=device, dtype=torch.float32) 
-            scores = torch.from_numpy(scores_all[order])
-
+            scores = torch.from_numpy(scores_all[order]).to(device=device, dtype=torch.float32) 
+    
             # todo: remove copy()
             priors_filtered = priors[torch.from_numpy(order)]
             priors_filtered = priors_filtered.to(device)
@@ -138,7 +119,7 @@ def postprocess(shms: tuple, q_in):
             # dets = dets[keep, :]
             # landms = landms[keep]
 
-            dets = np.hstack((scores, scores[:, np.newaxis])).astype(np.float32, copy=False)
+            dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
             # concatenate landms
             dets = np.concatenate((dets, landms), axis=1)
             for d in dets:
