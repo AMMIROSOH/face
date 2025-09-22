@@ -1,8 +1,8 @@
-from src.inference.retinaface import RetinFace,LOC_LENGTH,CONF_LENGTH,LANDS_LENGTH,IMAGE_SHAPE
-from src.utils.retinaface import PriorBox, decode, decode_landm
-from src.models.retinaface import cfg_re50
-from src.utils.paint import draw_fps
-from src.constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH, MAX_PEAPLE, CAMERA_URL
+from inference.retinaface import RetinFace,LOC_LENGTH,CONF_LENGTH,LANDS_LENGTH,IMAGE_SHAPE
+from utils.retinaface import PriorBox, decode, decode_landm
+from models.retinaface import cfg_re50
+from utils.paint import draw_fps
+from constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH, MAX_PEAPLE, CAMERA_URL
 from multiprocessing import Queue, Process, shared_memory
 import numpy as np
 import cv2 as cv
@@ -59,11 +59,13 @@ def inference(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
         if SYNC_FPS:
             q_in.get()
 
+        # todo: transfer this to capture
         frame = np.array(frame_in, dtype=np.int32)
         frame -= (104, 117, 123)
         frame = frame.transpose(2, 0, 1)
 
         loc, conf, landms = retinaModel.infer(frame)
+        # todo: transfer this to infer
         frame_out[:] = frame_in
         loc_out[:] = loc[0]
         conf_out[:] = conf[0]
@@ -156,7 +158,7 @@ def postprocess(shms: tuple[str, ...], q_in: Queue):
         key = cv.waitKey(1) & 0xFF
         # q or ESC
         if key == ord("q") or key == 27:
-            global_message[0] = 1
+            global_message[0] = 0
             break
 
 
@@ -174,7 +176,7 @@ if __name__ == "__main__":
     shm_inference_conf = shared_memory.SharedMemory(create=True, size=size_conf)
     shm_inference_lands = shared_memory.SharedMemory(create=True, size=size_lands)
 
-    shm_global_msg[0] = 1
+    shm_global_msg.buf[0] = 1
 
     q1 = Queue()
     q2 = Queue()
