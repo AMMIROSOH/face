@@ -1,17 +1,16 @@
-from retinaface import RetinFace, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
-from multiprocessing import shared_memory
-import multiprocessing as mp
-from utils.utils import draw_fps
-from utils.retinaface import decode, decode_landm, py_cpu_nms
-from models.config import cfg_re50
-from utils.priorbox import PriorBox
+from src.inference.retinaface import RetinFace, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
+from src.utils.retinaface import PriorBox, decode, decode_landm, py_cpu_nms
+from src.models.retinaface import cfg_re50
+from src.utils.paint import draw_fps
+from src.constants import SYNC_FPS
+from multiprocessing import Queue, Process, shared_memory
 import numpy as np
 import cv2 as cv
 import torchvision
 import torch
 import time
 
-def capture(shm, q_out):
+def capture(shm: str, q_out: Queue):
     shm = shared_memory.SharedMemory(name=shm)
     frame = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm.buf)
 
@@ -25,11 +24,13 @@ def capture(shm, q_out):
         while True:
             ret, frame_temp = cap.read()
             cv.resize(frame_temp, (640, 640), frame)
+            if SYNC_FPS:
+                q_out.put("ready")
     except Exception:
         print(Exception)
         q_out.put("stop")
 
-def inference(shms: tuple, q_in, q_out):
+def inference(shms: tuple[str, str, str, str, str], q_in: Queue, q_out: Queue):
     retinaModel = RetinFace()
     shm_frame_in, shm_frame_out, shm_loc_out, shm_conf_out, shm_lands_out = shms
 
@@ -56,7 +57,7 @@ def inference(shms: tuple, q_in, q_out):
         conf_out[:] = conf[0]
         lands_out[:] = landms[0]
 
-def postprocess(shms: tuple, q_in):
+def postprocess(shms: tuple[str, str, str, str], q_in: Queue):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     shm_frame_in, shm_loc_in, shm_conf_in, shm_lands_in = shms
@@ -159,15 +160,15 @@ if __name__ == "__main__":
     shm_inference_conf = shared_memory.SharedMemory(create=True, size=size_conf)
     shm_inference_lands = shared_memory.SharedMemory(create=True, size=size_lands)
 
-    q1 = mp.Queue()
-    q2 = mp.Queue()
+    q1 = Queue()
+    q2 = Queue()
 
     shms_inference = (shm_cap_frame.name, shm_inference_frame.name, shm_inference_loc.name, shm_inference_conf.name, shm_inference_lands.name)
     shms_post = (shm_inference_frame.name, shm_inference_loc.name, shm_inference_conf.name, shm_inference_lands.name)
 
-    p1 = mp.Process(target=capture, args=(shm_cap_frame.name, q1))
-    p2 = mp.Process(target=inference, args=(shms_inference, q1, q2))
-    p3 = mp.Process(target=postprocess, args=(shms_post, q2))
+    p1 = Process(target=capture, args=(shm_cap_frame.name, q1))
+    p2 = Process(target=inference, args=(shms_inference, q1, q2))
+    p3 = Process(target=postprocess, args=(shms_post, q2))
 
     p1.start(); p2.start(); p3.start()
     p1.join(); p2.join(); p3.join()
