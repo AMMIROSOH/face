@@ -174,6 +174,8 @@ if __name__ == "__main__":
     shm_inference_conf = shared_memory.SharedMemory(create=True, size=size_conf)
     shm_inference_lands = shared_memory.SharedMemory(create=True, size=size_lands)
 
+    shm_global_msg[0] = 1
+
     q1 = Queue()
     q2 = Queue()
 

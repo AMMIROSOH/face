@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "face"
+version = "0.1.0"
+description = "face detection | recognition project"
+authors = ["AmirHossein Sohrabi <a.sohrabi1380@gmail.com>"]
+package-mode = false
+
+[tool.poetry.scripts]
+dev = "src.main"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+numpy = "^2.3.3"
+
+[tool.poetry.group.dev.dependencies]
