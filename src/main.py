@@ -2,7 +2,7 @@ from src.inference.retinaface import RetinFace,LOC_LENGTH,CONF_LENGTH,LANDS_LENG
 from src.utils.retinaface import PriorBox, decode, decode_landm
 from src.models.retinaface import cfg_re50
 from src.utils.paint import draw_fps
-from src.constants import SYNC_FPS
+from src.constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH, MAX_PEAPLE, CAMERA_URL
 from multiprocessing import Queue, Process, shared_memory
 import numpy as np
 import cv2 as cv
@@ -11,44 +11,51 @@ import torch
 import time
 
 
-def capture(shm: str, q_out: Queue):
-    shm = shared_memory.SharedMemory(name=shm)
-    frame = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm.buf)
+def capture(shms: tuple[str, ...], q_out: Queue):
+    shm_global_msg, shm_frame_in = shms
 
-    cap = cv.VideoCapture("http://192.168.1.102:4747/video/force/1280x720")
+    shm_frame_in = shared_memory.SharedMemory(name=shm_frame_in)
+    shm_global_msg = shared_memory.SharedMemory(name=shm_global_msg)
+
+    frame = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
+    global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
+
+    cap = cv.VideoCapture(CAMERA_URL)
     if not cap.isOpened():
         print(f"ERROR: Cannot open camera")
-        q_out.put("stop")
+        global_message[0] = 0
         return
 
     try:
-        while True:
-            ret, frame_temp = cap.read()
+        while global_message[0]:
+            _ret, frame_temp = cap.read()
             cv.resize(frame_temp, (640, 640), frame)
             if SYNC_FPS:
                 q_out.put(0)
     except Exception:
         print(Exception)
-        q_out.put("stop")
+        global_message[0] = 0
 
 
-def inference(shms: tuple[str, str, str, str, str], q_in: Queue, q_out: Queue):
+def inference(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     retinaModel = RetinFace()
-    shm_frame_in, shm_frame_out, shm_loc_out, shm_conf_out, shm_lands_out = shms
+    shm_global_msg, shm_frame_in, shm_frame_out, shm_loc_out, shm_conf_out, shm_lands_out = shms
 
+    shm_global_msg = shared_memory.SharedMemory(name=shm_global_msg)
     shm_frame_in = shared_memory.SharedMemory(name=shm_frame_in)
     shm_frame_out = shared_memory.SharedMemory(name=shm_frame_out)
     shm_loc_out = shared_memory.SharedMemory(name=shm_loc_out)
     shm_conf_out = shared_memory.SharedMemory(name=shm_conf_out)
     shm_lands_out = shared_memory.SharedMemory(name=shm_lands_out)
 
+    global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
     frame_in = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
     frame_out = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_out.buf)
     loc_out = np.ndarray((LOC_LENGTH), dtype=np.float32, buffer=shm_loc_out.buf)
     conf_out = np.ndarray((CONF_LENGTH), dtype=np.float32, buffer=shm_conf_out.buf)
     lands_out = np.ndarray((LANDS_LENGTH), dtype=np.float32, buffer=shm_lands_out.buf)
 
-    while True:
+    while global_message[0]:
         if SYNC_FPS:
             q_in.get()
 
@@ -66,19 +73,21 @@ def inference(shms: tuple[str, str, str, str, str], q_in: Queue, q_out: Queue):
             q_out.put(0)
 
 
-def postprocess(shms: tuple[str, str, str, str], q_in: Queue):
+def postprocess(shms: tuple[str, ...], q_in: Queue):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    shm_frame_in, shm_loc_in, shm_conf_in, shm_lands_in = shms
+    shm_global_msg, shm_frame_in, shm_loc_in, shm_conf_in, shm_lands_in = shms
     shm_frame_in = shared_memory.SharedMemory(name=shm_frame_in)
     shm_loc_in = shared_memory.SharedMemory(name=shm_loc_in)
     shm_conf_in = shared_memory.SharedMemory(name=shm_conf_in)
     shm_lands_in = shared_memory.SharedMemory(name=shm_lands_in)
+    shm_global_msg = shared_memory.SharedMemory(name=shm_global_msg)
 
     frame_in = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
     loc_in = np.ndarray((LOC_LENGTH), dtype=np.float32, buffer=shm_loc_in.buf)
     conf_in = np.ndarray((CONF_LENGTH), dtype=np.float32, buffer=shm_conf_in.buf)
     lands_in = np.ndarray((LANDS_LENGTH), dtype=np.float32, buffer=shm_lands_in.buf)
+    global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
 
     im_height, im_width, _ = frame_in.shape
     priorbox = PriorBox(cfg_re50, image_size=(im_height, im_width))
@@ -89,7 +98,7 @@ def postprocess(shms: tuple[str, str, str, str], q_in: Queue):
 
     time_prev, fps = time.time(), 0.0
 
-    while True:
+    while global_message[0]:
         if SYNC_FPS:
             q_in.get()
 
@@ -106,8 +115,6 @@ def postprocess(shms: tuple[str, str, str, str], q_in: Queue):
             loc = torch.from_numpy(loc[order]).to(device=device, dtype=torch.float32)
             lands = torch.from_numpy(lands[order]).to(device=device, dtype=torch.float32) 
             scores = torch.from_numpy(scores_all[order]).to(device=device, dtype=torch.float32) 
-    
-            # todo: remove copy()
             priors_filtered = priors[torch.from_numpy(order)]
             priors_filtered = priors_filtered.to(device)
 
@@ -118,21 +125,13 @@ def postprocess(shms: tuple[str, str, str, str], q_in: Queue):
             landms = landms * scale_lands
 
             keep = torchvision.ops.nms(boxes, scores, 0.4)
-            if keep.numel() > 10:
-                keep = keep[:10]
+            if keep.numel() > MAX_PEAPLE:
+                keep = keep[:MAX_PEAPLE]
             boxes = boxes[keep].cpu().numpy()
             scores = scores[keep].cpu().numpy()
             landms = landms[keep].cpu().numpy()
 
-            # # do NMS
-            # dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
-            # keep = py_cpu_nms(dets, 0.4)
-            # # keep = nms(dets, args.nms_threshold,force_cpu=args.cpu)
-            # dets = dets[keep, :]
-            # landms = landms[keep]
-
             dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
-            # concatenate landms
             dets = np.concatenate((dets, landms), axis=1)
             for d in dets:
                 if d[4] < 0.6:
@@ -145,7 +144,6 @@ def postprocess(shms: tuple[str, str, str, str], q_in: Queue):
                 cv.putText(frame_in, text, (cx, cy),
                             cv.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
 
-                # landms
                 cv.circle(frame_in, (d[5], d[6]), 1, (0, 0, 255), 4)
                 cv.circle(frame_in, (d[7], d[8]), 1, (0, 255, 255), 4)
                 cv.circle(frame_in, (d[9], d[10]), 1, (255, 0, 255), 4)
@@ -156,18 +154,22 @@ def postprocess(shms: tuple[str, str, str, str], q_in: Queue):
         final_frame = cv.resize(frame_in, (1080, 720))
         cv.imshow("Webcam (press q or ESC to quit)", final_frame)
         key = cv.waitKey(1) & 0xFF
-        if key == ord("q") or key == 27:  # q or ESC
+        # q or ESC
+        if key == ord("q") or key == 27:
+            global_message[0] = 1
             break
 
 
 if __name__ == "__main__":
-    size = int(np.prod(IMAGE_SHAPE) * np.dtype(np.uint8).itemsize)
+    size_global_message = int(np.prod((GLOBAL_MESSAGE_LENGTH)) * np.dtype(np.uint8).itemsize)
+    size_frame = int(np.prod(IMAGE_SHAPE) * np.dtype(np.uint8).itemsize)
     size_loc = int(np.prod(LOC_LENGTH) * np.dtype(np.float32).itemsize)
     size_conf = int(np.prod(CONF_LENGTH) * np.dtype(np.float32).itemsize)
     size_lands = int(np.prod(LANDS_LENGTH) * np.dtype(np.float32).itemsize)
 
-    shm_cap_frame = shared_memory.SharedMemory(create=True, size=size)
-    shm_inference_frame = shared_memory.SharedMemory(create=True, size=size)
+    shm_global_msg = shared_memory.SharedMemory(create=True, size=size_global_message)
+    shm_cap_frame = shared_memory.SharedMemory(create=True, size=size_frame)
+    shm_inference_frame = shared_memory.SharedMemory(create=True, size=size_frame)
     shm_inference_loc = shared_memory.SharedMemory(create=True, size=size_loc)
     shm_inference_conf = shared_memory.SharedMemory(create=True, size=size_conf)
     shm_inference_lands = shared_memory.SharedMemory(create=True, size=size_lands)
@@ -175,10 +177,11 @@ if __name__ == "__main__":
     q1 = Queue()
     q2 = Queue()
 
-    shms_inference = (shm_cap_frame.name, shm_inference_frame.name, shm_inference_loc.name, shm_inference_conf.name, shm_inference_lands.name)
-    shms_post = (shm_inference_frame.name, shm_inference_loc.name, shm_inference_conf.name, shm_inference_lands.name)
+    shms_capture = (shm_global_msg.name, shm_cap_frame.name)
+    shms_inference = (shm_global_msg.name, shm_cap_frame.name, shm_inference_frame.name, shm_inference_loc.name, shm_inference_conf.name, shm_inference_lands.name)
+    shms_post = (shm_global_msg.name, shm_inference_frame.name, shm_inference_loc.name, shm_inference_conf.name, shm_inference_lands.name)
 
-    p1 = Process(target=capture, args=(shm_cap_frame.name, q1))
+    p1 = Process(target=capture, args=(shms_capture, q1))
     p2 = Process(target=inference, args=(shms_inference, q1, q2))
     p3 = Process(target=postprocess, args=(shms_post, q2))
 
