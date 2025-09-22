@@ -1,4 +1,10 @@
-from src.inference.retinaface import RetinFace, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
+from src.inference.retinaface import (
+    RetinFace,
+    LOC_LENGTH,
+    CONF_LENGTH,
+    LANDS_LENGTH,
+    IMAGE_SHAPE,
+)
 from src.utils.retinaface import PriorBox, decode, decode_landm, py_cpu_nms
 from src.models.retinaface import cfg_re50
 from src.utils.paint import draw_fps
@@ -9,6 +15,7 @@ import cv2 as cv
 import torchvision
 import torch
 import time
+
 
 def capture(shm: str, q_out: Queue):
     shm = shared_memory.SharedMemory(name=shm)
@@ -30,6 +37,7 @@ def capture(shm: str, q_out: Queue):
         print(Exception)
         q_out.put("stop")
 
+
 def inference(shms: tuple[str, str, str, str, str], q_in: Queue, q_out: Queue):
     retinaModel = RetinFace()
     shm_frame_in, shm_frame_out, shm_loc_out, shm_conf_out, shm_lands_out = shms
@@ -47,15 +55,16 @@ def inference(shms: tuple[str, str, str, str, str], q_in: Queue, q_out: Queue):
     lands_out = np.ndarray((LANDS_LENGTH), dtype=np.float32, buffer=shm_lands_out.buf)
 
     while True:
-        frame = np.array(frame_in, dtype=np.int32)            
+        frame = np.array(frame_in, dtype=np.int32)
         frame -= (104, 117, 123)
         frame = frame.transpose(2, 0, 1)
-        
+
         loc, conf, landms = retinaModel.infer(frame)
         frame_out[:] = frame_in
         loc_out[:] = loc[0]
         conf_out[:] = conf[0]
         lands_out[:] = landms[0]
+
 
 def postprocess(shms: tuple[str, str, str, str], q_in: Queue):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -80,7 +89,6 @@ def postprocess(shms: tuple[str, str, str, str], q_in: Queue):
 
     time_prev, fps = time.time(), 0.0
 
-
     while True:
         loc = loc_in.reshape((1, 16800, 4)).squeeze(0)
         conf = conf_in.reshape((1, 16800, 2)).squeeze(0)
@@ -90,7 +98,7 @@ def postprocess(shms: tuple[str, str, str, str], q_in: Queue):
         inds = np.where(scores_all > 0.02)[0]
         # todo: select topKs only if its needed < len(x)
         order = inds[np.argsort(scores_all[inds])[::-1][:5000]]
-        
+
         if order.size != 0:
             loc = torch.from_numpy(loc[order]).to(device=device, dtype=torch.float32)
             lands = torch.from_numpy(lands[order]).to(device=device, dtype=torch.float32) 
@@ -100,15 +108,15 @@ def postprocess(shms: tuple[str, str, str, str], q_in: Queue):
             priors_filtered = priors[torch.from_numpy(order)]
             priors_filtered = priors_filtered.to(device)
 
-            boxes = decode(loc, priors_filtered, cfg_re50['variance'])
+            boxes = decode(loc, priors_filtered, cfg_re50["variance"])
             boxes = boxes * scale_box
 
-            landms = decode_landm(lands, priors_filtered, cfg_re50['variance'])
+            landms = decode_landm(lands, priors_filtered, cfg_re50["variance"])
             landms = landms * scale_lands
 
             keep = torchvision.ops.nms(boxes, scores, 0.4)
             if keep.numel() > 10:
-                keep = keep[:10]            
+                keep = keep[:10]
             boxes = boxes[keep].cpu().numpy()
             scores = scores[keep].cpu().numpy()
             landms = landms[keep].cpu().numpy()
@@ -147,6 +155,7 @@ def postprocess(shms: tuple[str, str, str, str], q_in: Queue):
         key = cv.waitKey(1) & 0xFF
         if key == ord("q") or key == 27:  # q or ESC
             break
+
 
 if __name__ == "__main__":
     size = int(np.prod(IMAGE_SHAPE) * np.dtype(np.uint8).itemsize)
