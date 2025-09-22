@@ -1,11 +1,5 @@
-from src.inference.retinaface import (
-    RetinFace,
-    LOC_LENGTH,
-    CONF_LENGTH,
-    LANDS_LENGTH,
-    IMAGE_SHAPE,
-)
-from src.utils.retinaface import PriorBox, decode, decode_landm, py_cpu_nms
+from src.inference.retinaface import RetinFace,LOC_LENGTH,CONF_LENGTH,LANDS_LENGTH,IMAGE_SHAPE
+from src.utils.retinaface import PriorBox, decode, decode_landm
 from src.models.retinaface import cfg_re50
 from src.utils.paint import draw_fps
 from src.constants import SYNC_FPS
@@ -32,7 +26,7 @@ def capture(shm: str, q_out: Queue):
             ret, frame_temp = cap.read()
             cv.resize(frame_temp, (640, 640), frame)
             if SYNC_FPS:
-                q_out.put("ready")
+                q_out.put(0)
     except Exception:
         print(Exception)
         q_out.put("stop")
@@ -55,6 +49,9 @@ def inference(shms: tuple[str, str, str, str, str], q_in: Queue, q_out: Queue):
     lands_out = np.ndarray((LANDS_LENGTH), dtype=np.float32, buffer=shm_lands_out.buf)
 
     while True:
+        if SYNC_FPS:
+            q_in.get()
+
         frame = np.array(frame_in, dtype=np.int32)
         frame -= (104, 117, 123)
         frame = frame.transpose(2, 0, 1)
@@ -64,6 +61,9 @@ def inference(shms: tuple[str, str, str, str, str], q_in: Queue, q_out: Queue):
         loc_out[:] = loc[0]
         conf_out[:] = conf[0]
         lands_out[:] = landms[0]
+
+        if SYNC_FPS:
+            q_out.put(0)
 
 
 def postprocess(shms: tuple[str, str, str, str], q_in: Queue):
@@ -90,6 +90,9 @@ def postprocess(shms: tuple[str, str, str, str], q_in: Queue):
     time_prev, fps = time.time(), 0.0
 
     while True:
+        if SYNC_FPS:
+            q_in.get()
+
         loc = loc_in.reshape((1, 16800, 4)).squeeze(0)
         conf = conf_in.reshape((1, 16800, 2)).squeeze(0)
         lands = lands_in.reshape((1, 16800, 10)).squeeze(0)
