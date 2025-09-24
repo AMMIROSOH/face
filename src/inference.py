@@ -3,25 +3,23 @@ import pycuda.driver as cuda
 import pycuda.driver as cuda
 import pycuda.autoinit  # initializes CUDA driver
 import numpy.typing as npt
+from typing import Literal
 import numpy as np
+from enum import Enum
 
 LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH = 67200, 33600, 168000
 IMAGE_SHAPE = (640, 640, 3)
 
-class RetinFace:
-    def __init__(self):
+class Inference:
+    def __init__(self, model: Literal["RetinaFace-R50_fp16", "arcface-r100-glint360k_fp16"]):
         trt_logger = trt.Logger(trt.Logger.WARNING)
-        with open("checkpoints/RetinaFace-R50.engine", "rb") as f:
+        with open(f"checkpoints/{model}.engine", "rb") as f:
             runtime = trt.Runtime(trt_logger)
             engine = runtime.deserialize_cuda_engine(f.read())
 
+        self.model = model
         self.context = engine.create_execution_context()
-        self.inputs, self.outputs, self.bindings, self.stream = (
-            [],
-            [],
-            [],
-            cuda.Stream(),
-        )
+        self.inputs, self.outputs, self.bindings, self.stream = ([], [], [], cuda.Stream())
 
         for i in range(engine.num_io_tensors):
             tensor_name = engine.get_tensor_name(i)
@@ -48,9 +46,12 @@ class RetinFace:
         self.context.execute_v2(self.bindings)
 
         # Transfer outputs back
-        cuda.memcpy_dtoh_async(self.outputs[0][0], self.outputs[0][1], self.stream)
-        cuda.memcpy_dtoh_async(self.outputs[1][0], self.outputs[1][1], self.stream)
-        cuda.memcpy_dtoh_async(self.outputs[2][0], self.outputs[2][1], self.stream)
+        if("Retina" in self.model):
+            cuda.memcpy_dtoh_async(self.outputs[0][0], self.outputs[0][1], self.stream)
+            cuda.memcpy_dtoh_async(self.outputs[1][0], self.outputs[1][1], self.stream)
+            cuda.memcpy_dtoh_async(self.outputs[2][0], self.outputs[2][1], self.stream)
+        else:
+            cuda.memcpy_dtoh_async(self.outputs[0][0], self.outputs[0][1], self.stream)
         self.stream.synchronize()
 
         return self.outputs

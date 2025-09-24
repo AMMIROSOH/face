@@ -1,4 +1,4 @@
-from inference.retinaface import RetinFace,LOC_LENGTH,CONF_LENGTH,LANDS_LENGTH,IMAGE_SHAPE
+from inference import Inference, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
 from utils.retinaface import PriorBox, decode, decode_landm
 from models.retinaface import cfg_re50
 from utils.paint import draw_fps
@@ -38,7 +38,7 @@ def capture(shms: tuple[str, ...], q_out: Queue):
 
 
 def inference(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
-    retinaModel = RetinFace()
+    retinaModel = Inference(model="RetinaFace-R50_fp16")
     shm_global_msg, shm_frame_in, shm_frame_out, shm_loc_out, shm_conf_out, shm_lands_out = shms
 
     shm_global_msg = shared_memory.SharedMemory(name=shm_global_msg)
