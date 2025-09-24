@@ -39,21 +39,17 @@ def capture(shms: tuple[str, ...], q_out: Queue):
 
 def inference(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     retinaModel = Inference(model="RetinaFace-R50_fp16")
-    shm_global_msg, shm_frame_in, shm_frame_out, shm_loc_out, shm_conf_out, shm_lands_out = shms
+    shm_global_msg, shm_frame_in, shm_frame_out, shm_info_out = shms
 
     shm_global_msg = shared_memory.SharedMemory(name=shm_global_msg)
     shm_frame_in = shared_memory.SharedMemory(name=shm_frame_in)
     shm_frame_out = shared_memory.SharedMemory(name=shm_frame_out)
-    shm_loc_out = shared_memory.SharedMemory(name=shm_loc_out)
-    shm_conf_out = shared_memory.SharedMemory(name=shm_conf_out)
-    shm_lands_out = shared_memory.SharedMemory(name=shm_lands_out)
+    shm_info_out = shared_memory.SharedMemory(name=shm_info_out)
 
     global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
     frame_in = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
     frame_out = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_out.buf)
-    loc_out = np.ndarray((LOC_LENGTH), dtype=np.float32, buffer=shm_loc_out.buf)
-    conf_out = np.ndarray((CONF_LENGTH), dtype=np.float32, buffer=shm_conf_out.buf)
-    lands_out = np.ndarray((LANDS_LENGTH), dtype=np.float32, buffer=shm_lands_out.buf)
+    info_out = np.ndarray((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH), dtype=np.float32, buffer=shm_info_out.buf)
 
     while global_message[0]:
         if SYNC_FPS:
@@ -67,9 +63,8 @@ def inference(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
         loc, conf, landms = retinaModel.infer(frame)
         # todo: transfer this to infer
         frame_out[:] = frame_in
-        loc_out[:] = loc[0]
-        conf_out[:] = conf[0]
-        lands_out[:] = landms[0]
+
+        info_out[:] = np.concatenate((loc[0], conf[0], landms[0]))
 
         if SYNC_FPS:
             q_out.put(0)
@@ -78,17 +73,13 @@ def inference(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
 def postprocess(shms: tuple[str, ...], q_in: Queue):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    shm_global_msg, shm_frame_in, shm_loc_in, shm_conf_in, shm_lands_in = shms
+    shm_global_msg, shm_frame_in, shm_info_in = shms
     shm_frame_in = shared_memory.SharedMemory(name=shm_frame_in)
-    shm_loc_in = shared_memory.SharedMemory(name=shm_loc_in)
-    shm_conf_in = shared_memory.SharedMemory(name=shm_conf_in)
-    shm_lands_in = shared_memory.SharedMemory(name=shm_lands_in)
+    shm_info_in = shared_memory.SharedMemory(name=shm_info_in)
     shm_global_msg = shared_memory.SharedMemory(name=shm_global_msg)
 
     frame_in = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
-    loc_in = np.ndarray((LOC_LENGTH), dtype=np.float32, buffer=shm_loc_in.buf)
-    conf_in = np.ndarray((CONF_LENGTH), dtype=np.float32, buffer=shm_conf_in.buf)
-    lands_in = np.ndarray((LANDS_LENGTH), dtype=np.float32, buffer=shm_lands_in.buf)
+    info_in = np.ndarray((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH), dtype=np.float32, buffer=shm_info_in.buf)
     global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
 
     im_height, im_width, _ = frame_in.shape
@@ -104,9 +95,10 @@ def postprocess(shms: tuple[str, ...], q_in: Queue):
         if SYNC_FPS:
             q_in.get()
 
-        loc = loc_in.reshape((1, 16800, 4)).squeeze(0)
-        conf = conf_in.reshape((1, 16800, 2)).squeeze(0)
-        lands = lands_in.reshape((1, 16800, 10)).squeeze(0)
+        loc, conf, lands = np.split(info_in, [LOC_LENGTH, LOC_LENGTH + CONF_LENGTH])
+        loc = loc.reshape(16800, 4)
+        conf = conf.reshape(16800, 2)
+        lands = lands.reshape(16800, 10)
 
         scores_all = conf[:, 1]
         inds = np.where(scores_all > 0.02)[0]
@@ -165,16 +157,12 @@ def postprocess(shms: tuple[str, ...], q_in: Queue):
 if __name__ == "__main__":
     size_global_message = int(np.prod((GLOBAL_MESSAGE_LENGTH)) * np.dtype(np.uint8).itemsize)
     size_frame = int(np.prod(IMAGE_SHAPE) * np.dtype(np.uint8).itemsize)
-    size_loc = int(np.prod(LOC_LENGTH) * np.dtype(np.float32).itemsize)
-    size_conf = int(np.prod(CONF_LENGTH) * np.dtype(np.float32).itemsize)
-    size_lands = int(np.prod(LANDS_LENGTH) * np.dtype(np.float32).itemsize)
+    size_info = int(np.prod(LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH) * np.dtype(np.float32).itemsize)
 
     shm_global_msg = shared_memory.SharedMemory(create=True, size=size_global_message)
     shm_cap_frame = shared_memory.SharedMemory(create=True, size=size_frame)
     shm_inference_frame = shared_memory.SharedMemory(create=True, size=size_frame)
-    shm_inference_loc = shared_memory.SharedMemory(create=True, size=size_loc)
-    shm_inference_conf = shared_memory.SharedMemory(create=True, size=size_conf)
-    shm_inference_lands = shared_memory.SharedMemory(create=True, size=size_lands)
+    shm_inference_info = shared_memory.SharedMemory(create=True, size=size_info)
 
     shm_global_msg.buf[0] = 1
 
@@ -182,8 +170,8 @@ if __name__ == "__main__":
     q2 = Queue()
 
     shms_capture = (shm_global_msg.name, shm_cap_frame.name)
-    shms_inference = (shm_global_msg.name, shm_cap_frame.name, shm_inference_frame.name, shm_inference_loc.name, shm_inference_conf.name, shm_inference_lands.name)
-    shms_post = (shm_global_msg.name, shm_inference_frame.name, shm_inference_loc.name, shm_inference_conf.name, shm_inference_lands.name)
+    shms_inference = (shm_global_msg.name, shm_cap_frame.name, shm_inference_frame.name, shm_inference_info.name)
+    shms_post = (shm_global_msg.name, shm_inference_frame.name, shm_inference_info.name)
 
     p1 = Process(target=capture, args=(shms_capture, q1))
     p2 = Process(target=inference, args=(shms_inference, q1, q2))
@@ -194,6 +182,4 @@ if __name__ == "__main__":
 
     shm_cap_frame.close(); shm_cap_frame.unlink()
     shm_inference_frame.close(); shm_inference_frame.unlink()
-    shm_inference_loc.close(); shm_inference_loc.unlink()
-    shm_inference_conf.close(); shm_inference_conf.unlink()
-    shm_inference_lands.close(); shm_inference_lands.unlink()
+    shm_inference_info.close(); shm_inference_info.unlink()
