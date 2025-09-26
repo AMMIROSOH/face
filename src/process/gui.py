@@ -5,10 +5,10 @@ from utils.paint import draw_fps
 import time
 from inference import IMAGE_SHAPE
 from inference import LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
-from constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH, MAX_PEAPLE
+from constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
 
 def gui(shms: tuple[str, ...], q_in: Queue):
-    info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800)*MAX_PEAPLE, )
+    info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800)*MAX_PEOPLE, )
     shm_global_msg, shm_frame_in, shm_info_in, _shm_vec_in = shms
     shm_frame_in = shared_memory.SharedMemory(name=shm_frame_in)
     shm_info_in = shared_memory.SharedMemory(name=shm_info_in)

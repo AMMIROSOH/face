@@ -1,18 +1,18 @@
 from multiprocessing import Queue, Process, shared_memory
 import numpy as np
 from inference import LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
-from constants import GLOBAL_MESSAGE_LENGTH, MAX_PEAPLE
+from constants import GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
 from process import capture, face_detection, face_candidates, face_recognition, gui
 
 
 if __name__ == "__main__":
-    info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800)*MAX_PEAPLE, )
-    
+    info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800)*MAX_PEOPLE, )
+
     size_global_message = int(np.prod((GLOBAL_MESSAGE_LENGTH)) * np.dtype(np.uint8).itemsize)
     size_frame = int(np.prod(IMAGE_SHAPE) * np.dtype(np.uint8).itemsize)
     size_info = int(np.prod(LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH) * np.dtype(np.float32).itemsize)
     size_filtered_info = int(np.prod(info_shape[0]) * np.dtype(np.float32).itemsize)
-    size_vec = int(np.prod(512*MAX_PEAPLE) * np.dtype(np.float32).itemsize)
+    size_vec = int(np.prod(512*MAX_PEOPLE) * np.dtype(np.float32).itemsize)
 
     shm_global_msg = shared_memory.SharedMemory(create=True, size=size_global_message)
     shm_cap_frame = shared_memory.SharedMemory(create=True, size=size_frame)

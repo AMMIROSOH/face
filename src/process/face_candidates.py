@@ -4,12 +4,12 @@ import torchvision
 import torch
 from models.retinaface import cfg_re50
 from inference import LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
-from constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH, MAX_PEAPLE
+from constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
 from utils.retinaface import PriorBox, decode, decode_landm
 
 def face_candidates(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800) * MAX_PEAPLE, )
+    info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800) * MAX_PEOPLE, )
 
     shm_global_msg, shm_frame_in, shm_info_in, shm_frame_out, shm_info_out = shms
     shm_frame_in = shared_memory.SharedMemory(name=shm_frame_in)
@@ -60,8 +60,8 @@ def face_candidates(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
             landms = landms * scale_lands
 
             keep = torchvision.ops.nms(boxes, scores, 0.4)
-            if keep.numel() > MAX_PEAPLE:
-                keep = keep[:MAX_PEAPLE]
+            if keep.numel() > MAX_PEOPLE:
+                keep = keep[:MAX_PEOPLE]
             boxes = boxes[keep].cpu().numpy()
             scores = scores[keep].cpu().numpy()
             landms = landms[keep].cpu().numpy()
