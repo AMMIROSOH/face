@@ -31,7 +31,6 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     # vec_out = np.ndarray(512*MAX_PEAPLE, dtype=np.float32, buffer=shm_vec_out.buf)
     global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
 
-    faces = np.zeros((MAX_PEOPLE, 112, 112, 3), np.float32)
     vectors = np.zeros((MAX_PEOPLE, 512), np.float32)
 
     while global_message[0]:
@@ -42,22 +41,22 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
         if(count>0):
             loc, _conf, _lands = np.split(info_in[0:count*15], [4 * count, 4 * count + 1 * count])
             loc = loc.reshape(count, 4).astype(int)
-            face_temp = np.zeros((112, 112, 3), np.float32)
+            face_temp = np.zeros((112, 112, 3), np.uint8)
             for i in range(count):
                 x1, y1, x2, y2 = loc[i]
                 # todo: check for axis to doesnt go out of bounds
-                cv.resize(frame_in[y1:y2, x1:x2], (112, 112), face_temp)
-                normalize(face_temp/255).astype(np.float32)
-                # cv.imwrite("asd.jpg", face_temp) # EASTER EGG
-                faces[i, :] = face_temp
+                cv.resize(frame_in[y1:y2, x1:x2], (112, 112), dst=face_temp)
+                cv.cvtColor(face_temp, cv.COLOR_BGR2RGB, dst=face_temp)
+                face = np.transpose(face_temp / 127.5 - 1.0, (2,0,1)).astype(np.float32)              
+                # cv.imwrite("asd.jpg", frame_in[y1:y2, x1:x2]) # EASTER EGG
                 # batch inference here
-                vectors[i][:] = arcModel.infer(face_temp)[0][0]
+                vectors[i][:] = arcModel.infer(face)[0][0]
                 results = search_vec(vectors[i].tolist())
                 print(results[0].score, results[0].payload.get("name", "unkown"))
                 if(len(results)>0):
-                    if(results[0].score > 0.3):
+                    if(results[0].score > 0.6):
                         name = results[0].payload.get("name", "unkown")
-                        print(name, " is here")
+                        print(name, " is here with score: ", results[0].score)
                 pass
             pass
         
