@@ -22,7 +22,7 @@ def gui(shms: tuple[str, ...], q_in: Queue):
     while global_message[0]:
         count = 0
         if SYNC_FPS:
-            count = q_in.get()
+            count, box_owners = q_in.get()
 
         if(count>0):
             loc, conf, lands = np.split(info_in[0:count*15], [4 * count, 4 * count + 1 * count])
@@ -37,7 +37,9 @@ def gui(shms: tuple[str, ...], q_in: Queue):
                 cv.rectangle(frame_in, (loc[i][0], loc[i][1]), (loc[i][2], loc[i][3]), (0, 0, 255), 2)
                 cx = loc[i][0]
                 cy = loc[i][1] + 12
-                cv.putText(frame_in, text, (cx, cy),
+                cv.putText(frame_in, box_owners[i], (cx, cy),
+                            cv.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
+                cv.putText(frame_in, text, (cx, cy + 15),
                             cv.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
 
                 cv.circle(frame_in, (lands[i][0], lands[i][1]), 1, (0, 0, 255), 4)

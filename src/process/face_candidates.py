@@ -66,6 +66,12 @@ def face_candidates(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
             scores = scores[keep].cpu().numpy()
             landms = landms[keep].cpu().numpy()
 
+            # Clamp landmarks
+            boxes[:, [0, 2]] = np.clip(boxes[:, [0, 2]], 0, im_width)
+            boxes[:, [1, 3]] = np.clip(boxes[:, [1, 3]], 0, im_height)
+            landms[:, 0::2] = np.clip(landms[:, 0::2], 0, im_width)
+            landms[:, 1::2] = np.clip(landms[:, 1::2], 0, im_height)
+
             count = len(boxes)
             info = np.concatenate((boxes.flatten(), scores.flatten(), landms.flatten()))
             info_out[0:len(info)] = info
