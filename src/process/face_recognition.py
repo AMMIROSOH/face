@@ -2,6 +2,7 @@ from multiprocessing import Queue, shared_memory
 import numpy as np
 import torch
 import cv2 as cv
+from utils.qdrant import search_vec
 from inference import Inference, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
 from constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
 
@@ -44,12 +45,20 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
             face_temp = np.zeros((112, 112, 3), np.float32)
             for i in range(count):
                 x1, y1, x2, y2 = loc[i]
+                # todo: check for axis to doesnt go out of bounds
                 cv.resize(frame_in[y1:y2, x1:x2], (112, 112), face_temp)
                 normalize(face_temp/255).astype(np.float32)
                 # cv.imwrite("asd.jpg", face_temp) # EASTER EGG
                 faces[i, :] = face_temp
                 # batch inference here
                 vectors[i][:] = arcModel.infer(face_temp)[0][0]
+                results = search_vec(vectors[i].tolist())
+                print(results[0].score, results[0].payload.get("name", "unkown"))
+                if(len(results)>0):
+                    if(results[0].score > 0.3):
+                        name = results[0].payload.get("name", "unkown")
+                        print(name, " is here")
+                pass
             pass
         
         frame_out[:] = frame_in
