@@ -332,3 +332,12 @@ def remove_duplicate_stracks(stracksa, stracksb):
     resa = [t for i, t in enumerate(stracksa) if not i in dupa]
     resb = [t for i, t in enumerate(stracksb) if not i in dupb]
     return resa, resb
+
+
+def convert_boxes_xywh_to_tlbr(boxes):
+    boxes = np.asarray(boxes, dtype=np.float32)
+    x1 = boxes[:, 0]
+    y2 = boxes[:, 1]  
+    y1 = y2 + boxes[:, 3]
+    x2 = x1 + boxes[:, 2]
+    return np.stack([x1, y1, x2, y2], axis=1)

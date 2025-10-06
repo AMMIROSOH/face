@@ -40,7 +40,7 @@ def face_candidates(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
         conf = conf.reshape(16800, 2)
         lands = lands.reshape(16800, 10)
 
-        scores_all = conf[:, 1]
+        scores_all = conf[:, 1] / (conf[:, 1] * conf[:, 0])
         inds = np.where(scores_all > 0.02)[0]
         # todo: select topKs only if its needed < len(x)
         order = inds[np.argsort(scores_all[inds])[::-1][:5000]]
