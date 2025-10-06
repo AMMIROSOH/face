@@ -106,14 +106,17 @@ def face_track(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
         if(count>0):
             loc, conf, _ = np.split(info_in[0:count*15], [4 * count, 4 * count + 1 * count])
             loc = loc.reshape(count, 4).astype(int)
-            track_loc = loc[:, 2:] + loc[:, :2]
-            track_data = np.concatenate([track_loc, conf, np.zeros_like(conf)])
+            conf = conf.reshape(count, 1).astype(float)
+            track_loc = loc.copy()
+            track_loc[:, 2:] += track_loc[:, :2]
+            track_data = np.concatenate([track_loc, conf, np.zeros((count, 1))], axis=1)
             online_targets = tracker.update(track_data, [IMAGE_SHAPE[0], IMAGE_SHAPE[1]], [IMAGE_SHAPE[0], IMAGE_SHAPE[1]])
+            print(count, len(online_targets))
             for i, target in enumerate(online_targets):
-                info_out[i*4:(i+1)*4] = target.tlwh
+                info_out[i*4:(i+1)*4] = np.array(target.tlwh, dtype=np.float32)
                 box_owners.append(str(target.track_id))
         
         frame_out[:] = frame_in
-        info_out[count*15:] = info_in[count*15:]
+        info_out[count*4:] = info_in[count*4:]
         q_out.put((count, box_owners))
 
