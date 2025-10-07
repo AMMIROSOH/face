@@ -81,7 +81,7 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
         q_out.put((count, box_owners))
 
 def face_track(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
-    tracker = BYTETracker(args={"track_thresh": 0.5, "match_thresh": 0.8, "track_buffer": 30, "mot20": False })
+    tracker = BYTETracker(args={"track_thresh": 0.5, "match_thresh": 0.7, "track_buffer": 30, "mot20": False })
     info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800)*MAX_PEOPLE, )
 
     shm_global_msg, shm_frame_in, shm_info_in, shm_frame_out, shm_info_out, shm_vec_out = shms
@@ -108,8 +108,10 @@ def face_track(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
             loc = loc.reshape(count, 4).astype(int)
             conf = conf.reshape(count, 1).astype(float)
             track_loc = loc.copy()
-            track_loc[:, 2:] += track_loc[:, :2]
-            track_data = np.concatenate([track_loc, conf, np.zeros((count, 1))], axis=1)
+            track_loc[:, 2] = track_loc[:, 0] + track_loc[:, 2]
+            track_loc[:, 1] = track_loc[:, 1] - track_loc[:, 3]
+
+            track_data = np.concatenate([track_loc, conf], axis=1)
             online_targets = tracker.update(track_data, [IMAGE_SHAPE[0], IMAGE_SHAPE[1]], [IMAGE_SHAPE[0], IMAGE_SHAPE[1]])
             print(count, len(online_targets))
             for i, target in enumerate(online_targets):

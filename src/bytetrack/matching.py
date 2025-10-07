@@ -1,11 +1,8 @@
-import cv2
 import numpy as np
 import scipy
 import lap
 from scipy.spatial.distance import cdist
-# from cython_bbox import bbox_overlaps as bbox_ious
 from . import kalman_filter
-import time
 
 def merge_matches(m1, m2, shape):
     O,P,Q = shape
@@ -24,17 +21,6 @@ def merge_matches(m1, m2, shape):
     return match, unmatched_O, unmatched_Q
 
 
-def _indices_to_matches(cost_matrix, indices, thresh):
-    matched_cost = cost_matrix[tuple(zip(*indices))]
-    matched_mask = (matched_cost <= thresh)
-
-    matches = indices[matched_mask]
-    unmatched_a = tuple(set(range(cost_matrix.shape[0])) - set(matches[:, 0]))
-    unmatched_b = tuple(set(range(cost_matrix.shape[1])) - set(matches[:, 1]))
-
-    return matches, unmatched_a, unmatched_b
-
-
 def linear_assignment(cost_matrix, thresh):
     if cost_matrix.size == 0:
         return np.empty((0, 2), dtype=int), tuple(range(cost_matrix.shape[0])), tuple(range(cost_matrix.shape[1]))
@@ -48,25 +34,6 @@ def linear_assignment(cost_matrix, thresh):
     matches = np.asarray(matches)
     return matches, unmatched_a, unmatched_b
 
-
-# def ious1(atlbrs, btlbrs):
-#     """
-#     Compute cost based on IoU
-#     :type atlbrs: list[tlbr] | np.ndarray
-#     :type atlbrs: list[tlbr] | np.ndarray
-
-#     :rtype ious np.ndarray
-#     """
-#     ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float)
-#     if ious.size == 0:
-#         return ious
-
-#     ious = bbox_ious(
-#         np.ascontiguousarray(atlbrs, dtype=np.float),
-#         np.ascontiguousarray(btlbrs, dtype=np.float)
-#     )
-
-#     return ious
 
 def ious(atlbrs, btlbrs):
     """
@@ -129,6 +96,7 @@ def iou_distance(atracks, btracks):
 
     return cost_matrix
 
+
 def v_iou_distance(atracks, btracks):
     """
     Compute cost based on IoU
@@ -148,6 +116,7 @@ def v_iou_distance(atracks, btracks):
     cost_matrix = 1 - _ious
 
     return cost_matrix
+
 
 def embedding_distance(tracks, detections, metric='cosine'):
     """

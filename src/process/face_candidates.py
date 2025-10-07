@@ -42,7 +42,7 @@ def face_candidates(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
 
         exp_logits = np.exp(conf)
         scores_all = (exp_logits / np.sum(exp_logits, axis=1, keepdims=True))[:, 1]
-        inds = np.where(scores_all > 0.02)[0]
+        inds = np.where(scores_all > 0.7)[0]
         # todo: select topKs only if its needed < len(x)
         order = inds[np.argsort(scores_all[inds])[::-1][:5000]]
 

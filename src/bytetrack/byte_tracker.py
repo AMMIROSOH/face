@@ -1,11 +1,4 @@
 import numpy as np
-from collections import deque
-import os
-import os.path as osp
-import copy
-import torch
-import torch.nn.functional as F
-
 from .kalman_filter import KalmanFilter
 from . import matching
 from .basetrack import BaseTrack, TrackState
@@ -171,8 +164,8 @@ class BYTETracker(object):
             scores = output_results[:, 4]
             bboxes = output_results[:, :4]
         else:
-            output_results = output_results#.cpu().numpy()
-            scores = output_results[:, 4] #* output_results[:, 5]
+            output_results = output_results.cpu().numpy()
+            scores = output_results[:, 4] * output_results[:, 5]
             bboxes = output_results[:, :4]  # x1y1x2y2
         img_h, img_w = img_info[0], img_info[1]
         scale = min(img_size[0] / float(img_h), img_size[1] / float(img_w))
@@ -181,8 +174,8 @@ class BYTETracker(object):
         remain_inds = scores > self.track_thresh
         inds_low = scores > 0.1
         inds_high = scores < self.track_thresh
-
         inds_second = np.logical_and(inds_low, inds_high)
+
         dets_second = bboxes[inds_second]
         dets = bboxes[remain_inds]
         scores_keep = scores[remain_inds]
@@ -332,12 +325,3 @@ def remove_duplicate_stracks(stracksa, stracksb):
     resa = [t for i, t in enumerate(stracksa) if not i in dupa]
     resb = [t for i, t in enumerate(stracksb) if not i in dupb]
     return resa, resb
-
-
-def convert_boxes_xywh_to_tlbr(boxes):
-    boxes = np.asarray(boxes, dtype=np.float32)
-    x1 = boxes[:, 0]
-    y2 = boxes[:, 1]  
-    y1 = y2 + boxes[:, 3]
-    x2 = x1 + boxes[:, 2]
-    return np.stack([x1, y1, x2, y2], axis=1)
