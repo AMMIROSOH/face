@@ -3,6 +3,7 @@ from bytetrack.byte_tracker import BYTETracker
 import numpy as np
 import time
 import cv2 as cv
+from bytetrack.matching import iou_distance
 from utils.qdrant import search_vec
 from inference import Inference, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
 from constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
@@ -102,23 +103,21 @@ def face_track(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
         if SYNC_FPS:
             # todo: this will make SYNC_FPS not working
             count: int = q_in.get()
-        box_owners = [] 
+        box_owners = ["unkown"] * count 
         if(count>0):
             loc, conf, _ = np.split(info_in[0:count*15], [4 * count, 4 * count + 1 * count])
             loc = loc.reshape(count, 4).astype(int)
             conf = conf.reshape(count, 1).astype(float)
             track_loc = loc.copy()
-            track_loc[:, 2] = track_loc[:, 0] + track_loc[:, 2]
-            track_loc[:, 1] = track_loc[:, 1] - track_loc[:, 3]
+            track_loc[:, 2] += track_loc[:, 0]
+            track_loc[:, 3] += track_loc[:, 1]
 
             track_data = np.concatenate([track_loc, conf], axis=1)
             online_targets = tracker.update(track_data, [IMAGE_SHAPE[0], IMAGE_SHAPE[1]], [IMAGE_SHAPE[0], IMAGE_SHAPE[1]])
-            print(count, len(online_targets))
-            for i, target in enumerate(online_targets):
-                info_out[i*4:(i+1)*4] = np.array(target.tlwh, dtype=np.float32)
-                box_owners.append(str(target.track_id))
+            for target in online_targets:
+                box_owners[target.detection_index] = str(target.track_id)
         
         frame_out[:] = frame_in
-        info_out[count*4:] = info_in[count*4:]
+        info_out[:] = info_in
         q_out.put((count, box_owners))
 

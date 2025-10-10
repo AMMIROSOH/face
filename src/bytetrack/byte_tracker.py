@@ -5,13 +5,14 @@ from .basetrack import BaseTrack, TrackState
 
 class STrack(BaseTrack):
     shared_kalman = KalmanFilter()
-    def __init__(self, tlwh, score):
+    def __init__(self, tlwh, score, detection_index):
 
         # wait activate
         self._tlwh = np.asarray(tlwh, dtype=np.float64)
         self.kalman_filter = None
         self.mean, self.covariance = None, None
         self.is_activated = False
+        self.detection_index = detection_index
 
         self.score = score
         self.tracklet_len = 0
@@ -49,7 +50,8 @@ class STrack(BaseTrack):
         self.frame_id = frame_id
         self.start_frame = frame_id
 
-    def re_activate(self, new_track, frame_id, new_id=False):
+    def re_activate(self, new_track, frame_id, detection_index, new_id=False):
+        self.detection_index = detection_index
         self.mean, self.covariance = self.kalman_filter.update(
             self.mean, self.covariance, self.tlwh_to_xyah(new_track.tlwh)
         )
@@ -61,7 +63,7 @@ class STrack(BaseTrack):
             self.track_id = self.next_id()
         self.score = new_track.score
 
-    def update(self, new_track, frame_id):
+    def update(self, new_track, frame_id, detection_index):
         """
         Update a matched track
         :type new_track: STrack
@@ -71,6 +73,7 @@ class STrack(BaseTrack):
         """
         self.frame_id = frame_id
         self.tracklet_len += 1
+        self.detection_index = detection_index
 
         new_tlwh = new_track.tlwh
         self.mean, self.covariance = self.kalman_filter.update(
@@ -183,8 +186,8 @@ class BYTETracker(object):
 
         if len(dets) > 0:
             '''Detections'''
-            detections = [STrack(STrack.tlbr_to_tlwh(tlbr), s) for
-                          (tlbr, s) in zip(dets, scores_keep)]
+            detections = [STrack(STrack.tlbr_to_tlwh(tlbr), s, i) for
+                          (i, (tlbr, s)) in enumerate(zip(dets, scores_keep))]
         else:
             detections = []
 
@@ -210,18 +213,18 @@ class BYTETracker(object):
             track = strack_pool[itracked]
             det = detections[idet]
             if track.state == TrackState.Tracked:
-                track.update(detections[idet], self.frame_id)
+                track.update(detections[idet], self.frame_id, idet)
                 activated_starcks.append(track)
             else:
-                track.re_activate(det, self.frame_id, new_id=False)
+                track.re_activate(det, self.frame_id, idet, new_id=False)
                 refind_stracks.append(track)
 
         ''' Step 3: Second association, with low score detection boxes'''
         # association the untrack to the low score detections
         if len(dets_second) > 0:
             '''Detections'''
-            detections_second = [STrack(STrack.tlbr_to_tlwh(tlbr), s) for
-                          (tlbr, s) in zip(dets_second, scores_second)]
+            detections_second = [STrack(STrack.tlbr_to_tlwh(tlbr), s, i) for
+                          (i, (tlbr, s)) in enumerate(zip(dets_second, scores_second))]
         else:
             detections_second = []
         r_tracked_stracks = [strack_pool[i] for i in u_track if strack_pool[i].state == TrackState.Tracked]
@@ -231,10 +234,10 @@ class BYTETracker(object):
             track = r_tracked_stracks[itracked]
             det = detections_second[idet]
             if track.state == TrackState.Tracked:
-                track.update(det, self.frame_id)
+                track.update(det, self.frame_id, idet)
                 activated_starcks.append(track)
             else:
-                track.re_activate(det, self.frame_id, new_id=False)
+                track.re_activate(det, self.frame_id, idet, new_id=False)
                 refind_stracks.append(track)
 
         for it in u_track:
@@ -250,7 +253,7 @@ class BYTETracker(object):
             dists = matching.fuse_score(dists, detections)
         matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=0.7)
         for itracked, idet in matches:
-            unconfirmed[itracked].update(detections[idet], self.frame_id)
+            unconfirmed[itracked].update(detections[idet], self.frame_id, idet)
             activated_starcks.append(unconfirmed[itracked])
         for it in u_unconfirmed:
             track = unconfirmed[it]
