@@ -14,20 +14,23 @@ def capture(shms: tuple[str, ...], q_out: Queue):
     frame = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
     global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
 
-    cap = cv.VideoCapture(CAMERA_URL)
+    cap = cv.VideoCapture("test.mov") # CAMERA_URL
     if not cap.isOpened():
-        print(f"ERROR: Cannot open camera")
+        print(f"ERROR: Cannot find camera or movie")
         global_message[0] = 0
         return
 
     try:
         while global_message[0]:
-            _ret, frame_temp = cap.read()
-            cv.resize(frame_temp, (640, 640), frame)
-            cv.resize(frame_temp, (1280, 720), gui_frame_in)
+            ret, frame_temp = cap.read()
+            if(not ret):
+               global_message[0] = 0
+               break
+            cv.resize(frame_temp, (IMAGE_SHAPE[1], IMAGE_SHAPE[0]), frame)
+            cv.resize(frame_temp, (IMAGE_SHAPE_GUI[1], IMAGE_SHAPE_GUI[0]), gui_frame_in)
             if SYNC_FPS:
-                q_out.put(0)
-    except Exception:
-        print(Exception)
+                q_out.put(0, False)
+    except Exception as e:
+        print(e)
         global_message[0] = 0
 

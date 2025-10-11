@@ -21,8 +21,8 @@ def gui(shms: tuple[str, ...], q_in: Queue):
 
     gui_frame_temp = gui_frame_in.copy()
     time_prev, fps = time.time(), 0.0
+    count = 0
     while global_message[0]:
-        count = 0
         if SYNC_FPS:
             count, box_owners = q_in.get()
         gui_frame_temp[:] = gui_frame_in
