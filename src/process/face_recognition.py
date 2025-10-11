@@ -83,6 +83,7 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
 
 def face_track(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     tracker = BYTETracker(args={"track_thresh": 0.5, "match_thresh": 0.7, "track_buffer": 30, "mot20": False })
+    arcModel = Inference(model="arcface-r100-glint360k_fp16")
     info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800)*MAX_PEOPLE, )
 
     shm_global_msg, shm_frame_in, shm_info_in, shm_frame_out, shm_info_out, shm_vec_out = shms
@@ -98,26 +99,51 @@ def face_track(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     info_out = np.ndarray(info_shape, dtype=np.float32, buffer=shm_info_out.buf)
     global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
 
+    face_temp = np.zeros((112, 112, 3), np.uint8)
     while global_message[0]:
         count = 0
         if SYNC_FPS:
             # todo: this will make SYNC_FPS not working
             count: int = q_in.get()
-        box_owners = ["unkown"] * count 
+        box_owners = []
         if(count>0):
             loc, conf, _ = np.split(info_in[0:count*15], [4 * count, 4 * count + 1 * count])
             loc = loc.reshape(count, 4).astype(int)
             conf = conf.reshape(count, 1).astype(float)
-            track_loc = loc.copy()
-            track_loc[:, 2] += track_loc[:, 0]
-            track_loc[:, 3] += track_loc[:, 1]
 
-            track_data = np.concatenate([track_loc, conf], axis=1)
-            online_targets = tracker.update(track_data, [IMAGE_SHAPE[0], IMAGE_SHAPE[1]], [IMAGE_SHAPE[0], IMAGE_SHAPE[1]])
-            for target in online_targets:
-                box_owners[target.detection_index] = str(target.track_id)
+            track_data = np.concatenate([loc, conf], axis=1)
+            online_tracks = tracker.update(track_data, [IMAGE_SHAPE[0], IMAGE_SHAPE[1]], [IMAGE_SHAPE[0], IMAGE_SHAPE[1]])
+            count_inf = 0
+            count = len(online_tracks)
+            for i, track in enumerate(online_tracks):
+                box = loc[track.detection_index]
+                if track.vector is None and count_inf < 1:
+                    count_inf += 1
+                    x1, y1, x2, y2 = box.astype(int)
+                    cv.resize(frame_in[y1:y2, x1:x2], (112, 112), dst=face_temp)
+                    cv.cvtColor(face_temp, cv.COLOR_BGR2RGB, dst=face_temp)
+                    face = np.transpose(face_temp / 127.5 - 1.0, (2,0,1)).astype(np.float32)              
+                    cv.imwrite("asd.jpg", frame_in[y1:y2, x1:x2]) # EASTER EGG
+                    vector = arcModel.infer(face)[0][0]
+                    norm = np.linalg.norm(vector)
+                    vector = vector/norm
+                    track.vector = vector
+
+                    # todo: do some retries on failed searchs
+                    results = search_vec(vector.tolist())
+                    print("inf called", results[0].score)
+                    if(len(results) > 0 and results[0].score > 0.6):
+                        hit = results[0]
+                        track.person_name = hit.payload.get("name", "unkown")
+
+                info_out[i*4:(i+1)*4] = box
+                box_owners.append(track.person_name + str(track.track_id))
+                    
+
+                
         
         frame_out[:] = frame_in
-        info_out[:] = info_in
+        # todo: some frames may get deleted by tracker
+        info_out[count*4:] = info_in[count*4:]
         q_out.put((count, box_owners))
 

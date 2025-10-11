@@ -21,16 +21,12 @@ def face_detection(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
         if SYNC_FPS:
             q_in.get()
 
-        # todo: transfer this to capture
         frame = np.array(frame_in, dtype=np.int32)
-        frame -= (104, 117, 123)
+        # frame -= (104, 117, 123)
         frame = frame.transpose(2, 0, 1)
 
         loc, conf, landms = retinaModel.infer(frame)
-        # todo: transfer this to infer
         frame_out[:] = frame_in
-
-        # todo: concat may not be needed
         info_out[:] = np.concatenate((loc[0], conf[0], landms[0]))
 
         if SYNC_FPS:

@@ -2,17 +2,20 @@ import numpy as np
 from .kalman_filter import KalmanFilter
 from . import matching
 from .basetrack import BaseTrack, TrackState
+import numpy.typing as npt
 
 class STrack(BaseTrack):
     shared_kalman = KalmanFilter()
-    def __init__(self, tlwh, score, detection_index):
+    def __init__(self, tlwh, score, detection_index: int):
 
         # wait activate
         self._tlwh = np.asarray(tlwh, dtype=np.float64)
         self.kalman_filter = None
         self.mean, self.covariance = None, None
         self.is_activated = False
-        self.detection_index = detection_index
+        self.detection_index: int = detection_index
+        self.vector: npt.ArrayLike = None
+        self.person_name: str = "unkown" 
 
         self.score = score
         self.tracklet_len = 0
@@ -150,6 +153,7 @@ class BYTETracker(object):
         self.track_buffer = args["track_buffer"]
         self.match_thresh = args["match_thresh"]
         self.mot20 = args["mot20"]
+
         #self.det_thresh = args.track_thresh
         self.det_thresh = self.track_thresh + 0.1
         self.buffer_size = int(frame_rate / 30.0 * self.track_buffer)
