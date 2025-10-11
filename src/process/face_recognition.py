@@ -8,7 +8,7 @@ from utils.qdrant import search_vec
 from inference import Inference, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
 from constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
 
-def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
+def face_recognition1(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     arcModel = Inference(model="arcface-r100-glint360k_fp16")
     info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800)*MAX_PEOPLE, )
 
@@ -81,12 +81,12 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
         info_out[:] = info_in
         q_out.put((count, box_owners))
 
-def face_track(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
+def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     tracker = BYTETracker(args={"track_thresh": 0.5, "match_thresh": 0.7, "track_buffer": 30, "mot20": False })
     arcModel = Inference(model="arcface-r100-glint360k_fp16")
     info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800)*MAX_PEOPLE, )
 
-    shm_global_msg, shm_frame_in, shm_info_in, shm_frame_out, shm_info_out, shm_vec_out = shms
+    shm_global_msg, shm_frame_in, shm_info_in, shm_frame_out, shm_info_out = shms
     shm_frame_in = shared_memory.SharedMemory(name=shm_frame_in)
     shm_info_in = shared_memory.SharedMemory(name=shm_info_in)
     shm_frame_out = shared_memory.SharedMemory(name=shm_frame_out)
@@ -123,7 +123,7 @@ def face_track(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
                     cv.resize(frame_in[y1:y2, x1:x2], (112, 112), dst=face_temp)
                     cv.cvtColor(face_temp, cv.COLOR_BGR2RGB, dst=face_temp)
                     face = np.transpose(face_temp / 127.5 - 1.0, (2,0,1)).astype(np.float32)              
-                    cv.imwrite("asd.jpg", frame_in[y1:y2, x1:x2]) # EASTER EGG
+                    # cv.imwrite("asd.jpg", frame_in[y1:y2, x1:x2]) # EASTER EGG
                     vector = arcModel.infer(face)[0][0]
                     norm = np.linalg.norm(vector)
                     vector = vector/norm
@@ -131,7 +131,7 @@ def face_track(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
 
                     # todo: do some retries on failed searchs
                     results = search_vec(vector.tolist())
-                    print("inf called", results[0].score)
+                    # print("inf called", results[0].score)
                     if(len(results) > 0 and results[0].score > 0.6):
                         hit = results[0]
                         track.person_name = hit.payload.get("name", "unkown")
