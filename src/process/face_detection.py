@@ -1,7 +1,7 @@
 from multiprocessing import Queue, shared_memory
 import numpy as np
 from inference import Inference, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
-from constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH
+from constants import GLOBAL_MESSAGE_LENGTH
 
 def face_detection(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     retinaModel = Inference(model="RetinaFace-R50_fp16")
@@ -18,8 +18,7 @@ def face_detection(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     info_out = np.ndarray((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH), dtype=np.float32, buffer=shm_info_out.buf)
 
     while global_message[0]:
-        if SYNC_FPS:
-            q_in.get()
+        q_in.get()
 
         frame = np.array(frame_in, dtype=np.int32)
         # frame -= (104, 117, 123)
@@ -29,5 +28,4 @@ def face_detection(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
         frame_out[:] = frame_in
         info_out[:] = np.concatenate((loc[0], conf[0], landms[0]))
 
-        if SYNC_FPS:
-            q_out.put(0)
+        q_out.put(0)

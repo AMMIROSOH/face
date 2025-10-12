@@ -2,7 +2,7 @@ from multiprocessing import Queue, shared_memory
 import numpy as np
 import cv2 as cv
 from inference import IMAGE_SHAPE
-from constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH, CAMERA_URL, IMAGE_SHAPE_GUI
+from constants import GLOBAL_MESSAGE_LENGTH, CAMERA_URL, IMAGE_SHAPE_GUI
 
 def capture(shms: tuple[str, ...], q_out: Queue):
     shm_global_msg, shm_frame_in, shm_cap_gui_frame = shms
@@ -28,8 +28,8 @@ def capture(shms: tuple[str, ...], q_out: Queue):
                break
             cv.resize(frame_temp, (IMAGE_SHAPE[1], IMAGE_SHAPE[0]), frame)
             cv.resize(frame_temp, (IMAGE_SHAPE_GUI[1], IMAGE_SHAPE_GUI[0]), gui_frame_in)
-            if SYNC_FPS:
-                q_out.put(0, False)
+            
+            q_out.put(0, False)
     except Exception as e:
         print(e)
         global_message[0] = 0

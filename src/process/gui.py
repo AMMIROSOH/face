@@ -5,7 +5,7 @@ from utils.paint import draw_fps
 import time
 from inference import IMAGE_SHAPE
 from inference import LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
-from constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE, IMAGE_SHAPE_GUI
+from constants import GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE, IMAGE_SHAPE_GUI
 
 def gui(shms: tuple[str, ...], q_in: Queue):
     info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800)*MAX_PEOPLE, )
@@ -21,10 +21,8 @@ def gui(shms: tuple[str, ...], q_in: Queue):
 
     gui_frame_temp = gui_frame_in.copy()
     time_prev, fps = time.time(), 0.0
-    count = 0
     while global_message[0]:
-        if SYNC_FPS:
-            count, box_owners = q_in.get()
+        count, box_owners = q_in.get()
         gui_frame_temp[:] = gui_frame_in
 
         if(count>0):

@@ -6,7 +6,7 @@ import cv2 as cv
 from bytetrack.matching import iou_distance
 from utils.qdrant import search_vec
 from inference import Inference, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
-from constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
+from constants import GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
 
 def face_recognition1(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     arcModel = Inference(model="arcface-r100-glint360k_fp16")
@@ -30,10 +30,7 @@ def face_recognition1(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     gallery_met = []
     gallery_vectors = np.zeros((MAX_PEOPLE*2, 512), dtype=np.float32)
     while global_message[0]:
-        count = 0
-        if SYNC_FPS:
-            # todo: this will make SYNC_FPS not working
-            count: int = q_in.get()
+        count: int = q_in.get()
         box_owners = [] 
         if(count>0):
             loc, _conf, _lands = np.split(info_in[0:count*15], [4 * count, 4 * count + 1 * count])
@@ -101,10 +98,7 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
 
     face_temp = np.zeros((112, 112, 3), np.uint8)
     while global_message[0]:
-        count = 0
-        if SYNC_FPS:
-            # todo: this will make SYNC_FPS not working
-            count: int = q_in.get()
+        count: int = q_in.get()
         box_owners = []
         if(count>0):
             loc, conf, _ = np.split(info_in[0:count*15], [4 * count, 4 * count + 1 * count])

@@ -4,7 +4,7 @@ import torchvision
 import torch
 from models.retinaface import cfg_re50
 from inference import LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
-from constants import SYNC_FPS, GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
+from constants import GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
 from utils.retinaface import PriorBox, decode, decode_landm
 
 def face_candidates(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
@@ -32,8 +32,7 @@ def face_candidates(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     scale_lands = torch.tensor([im_width, im_height] * 5, device=device, dtype=torch.float32)
 
     while global_message[0]:
-        if SYNC_FPS:
-            q_in.get()
+        q_in.get()
 
         loc, conf, lands = np.split(info_in, [LOC_LENGTH, LOC_LENGTH + CONF_LENGTH])
         loc = loc.reshape(16800, 4)
