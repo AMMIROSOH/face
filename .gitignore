@@ -1,3 +1,5 @@
+src/*.jpg
+
 /testbench/img/*
 checkpoints/*
 
