@@ -34,7 +34,7 @@ def face_candidates(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     while global_message[0]:
         q_in.get()
 
-        loc, conf, lands = np.split(info_in, [LOC_LENGTH, LOC_LENGTH + CONF_LENGTH])
+        loc, lands, conf = np.split(info_in, [LOC_LENGTH, LOC_LENGTH + LANDS_LENGTH])
         loc = loc.reshape(16800, 4)
         conf = conf.reshape(16800, 2)
         lands = lands.reshape(16800, 10)
@@ -73,7 +73,7 @@ def face_candidates(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
             landms[:, 1::2] = np.clip(landms[:, 1::2], 0, im_height)
 
             count = len(boxes)
-            info = np.concatenate((boxes.flatten(), scores.flatten(), landms.flatten()))
+            info = np.concatenate((boxes.flatten(), landms.flatten(), scores.flatten()))
             info_out[0:len(info)] = info
         frame_out[:] = frame_in
         q_out.put(count)

@@ -102,8 +102,9 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
         count: int = q_in.get()
         box_owners = []
         if(count>0):
-            loc, conf, _ = np.split(info_in[0:count*15], [4 * count, 4 * count + 1 * count])
+            loc, lands, conf = np.split(info_in[0:count*15], [4 * count, 14 * count])
             loc = loc.reshape(count, 4).astype(int)
+            lands = lands.reshape(count, 10).astype(int)
             conf = conf.reshape(count, 1).astype(float)
 
             track_data = np.concatenate([loc, conf], axis=1)
@@ -112,7 +113,7 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
             count = len(online_tracks)
             for i, track in enumerate(online_tracks):
                 box = loc[track.detection_index]
-                if count_inf < 1 and ((track.vector is None )
+                if count_inf < 3 and ((track.vector is None )
                     or (track.person_name == "unkown" 
                         and track.vector_try_frame + 30 <= frame_count)):
                     count_inf += 1
@@ -126,9 +127,7 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
                     vector = vector/norm
                     track.vector = vector
 
-                    # todo: do some retries on failed searchs
                     results = search_vec(vector.tolist())
-                    # print("inf called", results[0].score)
                     if(len(results) > 0 and results[0].score > 0.6):
                         hit = results[0]
                         track.person_name = hit.payload.get("name", "unkown")
@@ -136,13 +135,9 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
                     track.vector_try_frame = frame_count
 
                 info_out[i*4:(i+1)*4] = box
+                info_out[count*4 + i*10:count*4 + (i+1)*10] = lands[track.detection_index]
+                info_out[count*14 + i*1] = conf[track.detection_index]
                 box_owners.append(track.person_name + str(track.track_id))
-                    
-
-                
-        
         frame_out[:] = frame_in
-        # todo: some frames may get deleted by tracker
-        info_out[count*4:] = info_in[count*4:]
         q_out.put((count, box_owners))
 

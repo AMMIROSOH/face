@@ -26,6 +26,6 @@ def face_detection(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
 
         loc, conf, landms = retinaModel.infer(frame)
         frame_out[:] = frame_in
-        info_out[:] = np.concatenate((loc[0], conf[0], landms[0]))
+        info_out[:] = np.concatenate((loc[0], landms[0], conf[0]))
 
         q_out.put(0)

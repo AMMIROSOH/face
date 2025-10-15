@@ -14,7 +14,7 @@ def capture(shms: tuple[str, ...], q_out: Queue):
     frame = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
     global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
 
-    cap = cv.VideoCapture("test.mov") # CAMERA_URL
+    cap = cv.VideoCapture("test_madrid.mov") # CAMERA_URL
     if not cap.isOpened():
         print(f"ERROR: Cannot find camera or movie")
         global_message[0] = 0

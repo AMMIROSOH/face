@@ -18,7 +18,6 @@ def gui(shms: tuple[str, ...], q_in: Queue):
     info_in = np.ndarray(info_shape, dtype=np.float32, buffer=shm_info_in.buf)
     global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
 
-
     gui_frame_temp = gui_frame_in.copy()
     time_prev, fps = time.time(), 0.0
     while global_message[0]:
@@ -26,10 +25,10 @@ def gui(shms: tuple[str, ...], q_in: Queue):
         gui_frame_temp[:] = gui_frame_in
 
         if(count>0):
-            loc, conf, lands = np.split(info_in[0:count*15], [4 * count, 4 * count + 1 * count])
+            loc, lands, conf = np.split(info_in[0:count*15], [4 * count, 14 * count])
             loc = loc.reshape(count, 4).astype(int)
-            conf = conf.reshape(count, 1)
             lands = lands.reshape(count, 10).astype(int)
+            conf = conf.reshape(count, 1)
 
             loc[:, 0] = loc[:, 0] * IMAGE_SHAPE_GUI[1] / IMAGE_SHAPE[1]
             loc[:, 2] = loc[:, 2] * IMAGE_SHAPE_GUI[1] / IMAGE_SHAPE[1]
