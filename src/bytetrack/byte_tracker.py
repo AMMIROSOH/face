@@ -15,7 +15,9 @@ class STrack(BaseTrack):
         self.is_activated = False
         self.detection_index: int = detection_index
         self.vector: npt.ArrayLike = None
-        self.person_name: str = "unkown" 
+        self.person_name: str = "unkown"
+        self.vector_tries: int = 0
+        self.vector_try_frame: 0
 
         self.score = score
         self.tracklet_len = 0

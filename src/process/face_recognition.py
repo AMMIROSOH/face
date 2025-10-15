@@ -3,12 +3,11 @@ from bytetrack.byte_tracker import BYTETracker
 import numpy as np
 import time
 import cv2 as cv
-from bytetrack.matching import iou_distance
 from utils.qdrant import search_vec
 from inference import Inference, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
 from constants import GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
 
-def face_recognition1(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
+def face_recognition_wihtout_track(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     arcModel = Inference(model="arcface-r100-glint360k_fp16")
     info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800)*MAX_PEOPLE, )
 
@@ -97,7 +96,9 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
 
     face_temp = np.zeros((112, 112, 3), np.uint8)
+    frame_count = 0
     while global_message[0]:
+        frame_count += 1
         count: int = q_in.get()
         box_owners = []
         if(count>0):
@@ -111,7 +112,9 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
             count = len(online_tracks)
             for i, track in enumerate(online_tracks):
                 box = loc[track.detection_index]
-                if track.vector is None and count_inf < 1:
+                if count_inf < 1 and ((track.vector is None )
+                    or (track.person_name == "unkown" 
+                        and track.vector_try_frame + 30 <= frame_count)):
                     count_inf += 1
                     x1, y1, x2, y2 = box.astype(int)
                     cv.resize(frame_in[y1:y2, x1:x2], (112, 112), dst=face_temp)
@@ -129,6 +132,8 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
                     if(len(results) > 0 and results[0].score > 0.6):
                         hit = results[0]
                         track.person_name = hit.payload.get("name", "unkown")
+                    track.vector_tries += 1 
+                    track.vector_try_frame = frame_count
 
                 info_out[i*4:(i+1)*4] = box
                 box_owners.append(track.person_name + str(track.track_id))
