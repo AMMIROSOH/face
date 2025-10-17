@@ -41,14 +41,15 @@ def gui(shms: tuple[str, ...], q_in: Queue):
             for i in range(count):
                 if conf[i][0] < 0.6:
                     continue
-                text = "{:.4f}".format(conf[i][0])
+                text = "{:.2f}".format(conf[i][0])
                 cv.rectangle(gui_frame_temp, (loc[i][0], loc[i][1]), (loc[i][2], loc[i][3]), (0, 0, 255), 2)
                 cx = loc[i][0]
                 cy = loc[i][1] + 12
-                cv.putText(gui_frame_temp, box_owners[i], (cx, cy),
-                            cv.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
-                cv.putText(gui_frame_temp, text, (cx, cy + 15),
-                            cv.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
+                if("unkown" not in box_owners[i]):
+                    cv.putText(gui_frame_temp, box_owners[i], (cx, cy),
+                                cv.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
+                # cv.putText(gui_frame_temp, text, (cx, cy + 15),
+                #             cv.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
 
                 cv.circle(gui_frame_temp, (lands[i][0], lands[i][1]), 1, (0, 0, 255), 4)
                 cv.circle(gui_frame_temp, (lands[i][2], lands[i][3]), 1, (0, 255, 255), 4)

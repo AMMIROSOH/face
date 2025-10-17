@@ -219,10 +219,10 @@ class BYTETracker(object):
             track = strack_pool[itracked]
             det = detections[idet]
             if track.state == TrackState.Tracked:
-                track.update(detections[idet], self.frame_id, idet)
+                track.update(detections[idet], self.frame_id, detections[idet].detection_index)
                 activated_starcks.append(track)
             else:
-                track.re_activate(det, self.frame_id, idet, new_id=False)
+                track.re_activate(det, self.frame_id, detections[idet].detection_index, new_id=False)
                 refind_stracks.append(track)
 
         ''' Step 3: Second association, with low score detection boxes'''
@@ -240,10 +240,10 @@ class BYTETracker(object):
             track = r_tracked_stracks[itracked]
             det = detections_second[idet]
             if track.state == TrackState.Tracked:
-                track.update(det, self.frame_id, idet)
+                track.update(det, self.frame_id, det.detection_index)
                 activated_starcks.append(track)
             else:
-                track.re_activate(det, self.frame_id, idet, new_id=False)
+                track.re_activate(det, self.frame_id, det.detection_index, new_id=False)
                 refind_stracks.append(track)
 
         for it in u_track:
@@ -259,7 +259,7 @@ class BYTETracker(object):
             dists = matching.fuse_score(dists, detections)
         matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=0.7)
         for itracked, idet in matches:
-            unconfirmed[itracked].update(detections[idet], self.frame_id, idet)
+            unconfirmed[itracked].update(detections[idet], self.frame_id, detections[idet].detection_index)
             activated_starcks.append(unconfirmed[itracked])
         for it in u_unconfirmed:
             track = unconfirmed[it]

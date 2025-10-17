@@ -118,6 +118,8 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
                         and track.vector_try_frame + 30 <= frame_count)):
                     count_inf += 1
                     x1, y1, x2, y2 = box.astype(int)
+                    if(y2-y1<=0 or x2-x1<=0):
+                        continue
                     cv.resize(frame_in[y1:y2, x1:x2], (112, 112), dst=face_temp)
                     cv.cvtColor(face_temp, cv.COLOR_BGR2RGB, dst=face_temp)
                     face = np.transpose(face_temp / 127.5 - 1.0, (2,0,1)).astype(np.float32)              
@@ -137,7 +139,7 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
                 info_out[i*4:(i+1)*4] = box
                 info_out[count*4 + i*10:count*4 + (i+1)*10] = lands[track.detection_index]
                 info_out[count*14 + i*1] = conf[track.detection_index]
-                box_owners.append(track.person_name + str(track.track_id))
+                box_owners.append(track.person_name)
         frame_out[:] = frame_in
         q_out.put((count, box_owners))
 
