@@ -98,48 +98,51 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     face_temp = np.zeros((112, 112, 3), np.uint8)
     frame_count = 0
     while global_message[0]:
-        frame_count += 1
-        count: int = q_in.get()
-        box_owners = []
-        if(count>0):
-            loc, lands, conf = np.split(info_in[0:count*15], [4 * count, 14 * count])
-            loc = loc.reshape(count, 4).astype(int)
-            lands = lands.reshape(count, 10).astype(int)
-            conf = conf.reshape(count, 1).astype(float)
+        try:
+            count: int = q_in.get()
+            box_owners = []
+            if(count>0):
+                loc, lands, conf = np.split(info_in[0:count*15], [4 * count, 14 * count])
+                loc = loc.reshape(count, 4).astype(int)
+                lands = lands.reshape(count, 10).astype(int)
+                conf = conf.reshape(count, 1).astype(float)
 
-            track_data = np.concatenate([loc, conf], axis=1)
-            online_tracks = tracker.update(track_data, [IMAGE_SHAPE[0], IMAGE_SHAPE[1]], [IMAGE_SHAPE[0], IMAGE_SHAPE[1]])
-            count_inf = 0
-            count = len(online_tracks)
-            for i, track in enumerate(online_tracks):
-                box = loc[track.detection_index]
-                if count_inf < 3 and ((track.vector is None )
-                    or (track.person_name == "unkown" 
-                        and track.vector_try_frame + 30 <= frame_count)):
-                    count_inf += 1
-                    x1, y1, x2, y2 = box.astype(int)
-                    if(y2-y1<=0 or x2-x1<=0):
-                        continue
-                    cv.resize(frame_in[y1:y2, x1:x2], (112, 112), dst=face_temp)
-                    cv.cvtColor(face_temp, cv.COLOR_BGR2RGB, dst=face_temp)
-                    face = np.transpose(face_temp / 127.5 - 1.0, (2,0,1)).astype(np.float32)              
-                    # cv.imwrite("asd.jpg", frame_in[y1:y2, x1:x2]) # EASTER EGG
-                    vector = arcModel.infer(face)[0][0]
-                    norm = np.linalg.norm(vector)
-                    vector = vector/norm
-                    track.vector = vector
+                track_data = np.concatenate([loc, conf], axis=1)
+                online_tracks = tracker.update(track_data, [IMAGE_SHAPE[0], IMAGE_SHAPE[1]], [IMAGE_SHAPE[0], IMAGE_SHAPE[1]])
+                count_inf = 0
+                count = len(online_tracks)
+                for i, track in enumerate(online_tracks):
+                    box = loc[track.detection_index]
+                    if count_inf < 1 and ((track.vector is None )
+                        or (track.person_name == "unkown" 
+                            and track.vector_try_frame + track.vector_tries * 10 <= frame_count)):
+                        count_inf += 1
+                        x1, y1, x2, y2 = box.astype(int)
+                        if(y2-y1<=0 or x2-x1<=0):
+                            continue
+                        cv.resize(frame_in[y1:y2, x1:x2], (112, 112), dst=face_temp)
+                        cv.cvtColor(face_temp, cv.COLOR_BGR2RGB, dst=face_temp)
+                        face = np.transpose(face_temp / 127.5 - 1.0, (2,0,1)).astype(np.float32)              
+                        # cv.imwrite("asd.jpg", frame_in[y1:y2, x1:x2]) # EASTER EGG
+                        vector = arcModel.infer(face)[0][0]
+                        norm = np.linalg.norm(vector)
+                        vector = vector/norm
+                        track.vector = vector
 
-                    results = search_vec(vector.tolist())
-                    if(len(results) > 0 and results[0].score > 0.6):
-                        hit = results[0]
-                        track.person_name = hit.payload.get("name", "unkown")
-                    track.vector_tries += 1 
-                    track.vector_try_frame = frame_count
+                        results = search_vec(vector.tolist())
+                        if(len(results) > 0 and results[0].score > 0.6):
+                            hit = results[0]
+                            track.person_name = hit.payload.get("name", "unkown")
+                        track.vector_tries += 1 
+                        track.vector_try_frame = frame_count
 
-                info_out[i*4:(i+1)*4] = box
-                info_out[count*4 + i*10:count*4 + (i+1)*10] = lands[track.detection_index]
-                info_out[count*14 + i*1] = conf[track.detection_index]
-                box_owners.append(track.person_name)
-        frame_out[:] = frame_in
-        q_out.put((count, box_owners))
+                    info_out[i*4:(i+1)*4] = box
+                    info_out[count*4 + i*10:count*4 + (i+1)*10] = lands[track.detection_index]
+                    info_out[count*14 + i*1] = conf[track.detection_index]
+                    box_owners.append(track.person_name)
+            frame_count += 1
+            frame_out[:] = frame_in
+            q_out.put((count, box_owners))
+        except Exception as e:
+            print(f"Recognition error occurred: {e}")
 
