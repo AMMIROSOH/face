@@ -3,13 +3,13 @@ import numpy as np
 import torchvision
 import torch
 from models.retinaface import cfg_re50
-from inference import LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
+from inference import LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, DETECTION_LENGTH, FRAME_SHAPE
 from constants import GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
 from utils.retinaface import PriorBox, decode, decode_landm
 
 def face_candidates(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800) * MAX_PEOPLE, )
+    info_shape = ((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH) * MAX_PEOPLE, )
 
     shm_global_msg, shm_frame_in, shm_info_in, shm_frame_out, shm_info_out = shms
     shm_frame_in = shared_memory.SharedMemory(name=shm_frame_in)
@@ -18,9 +18,9 @@ def face_candidates(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     shm_info_out = shared_memory.SharedMemory(name=shm_info_out)
     shm_global_msg = shared_memory.SharedMemory(name=shm_global_msg)
 
-    frame_in = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
-    info_in = np.ndarray((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH), dtype=np.float32, buffer=shm_info_in.buf)
-    frame_out = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_out.buf)
+    frame_in = np.ndarray(FRAME_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
+    info_in = np.ndarray(((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH) * DETECTION_LENGTH), dtype=np.float32, buffer=shm_info_in.buf)
+    frame_out = np.ndarray(FRAME_SHAPE, dtype=np.uint8, buffer=shm_frame_out.buf)
     info_out = np.ndarray(info_shape, dtype=np.float32, buffer=shm_info_out.buf)
     global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
 
@@ -34,15 +34,14 @@ def face_candidates(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     while global_message[0]:
         q_in.get()
 
-        loc, lands, conf = np.split(info_in, [LOC_LENGTH, LOC_LENGTH + LANDS_LENGTH])
-        loc = loc.reshape(16800, 4)
-        conf = conf.reshape(16800, 2)
-        lands = lands.reshape(16800, 10)
+        loc, lands, conf = np.split(info_in, [LOC_LENGTH * DETECTION_LENGTH, (LOC_LENGTH + LANDS_LENGTH) * DETECTION_LENGTH])
+        loc = loc.reshape(DETECTION_LENGTH, LOC_LENGTH)
+        lands = lands.reshape(DETECTION_LENGTH, LANDS_LENGTH)
+        conf = conf.reshape(DETECTION_LENGTH, CONF_LENGTH)
 
         exp_logits = np.exp(conf)
         scores_all = (exp_logits / np.sum(exp_logits, axis=1, keepdims=True))[:, 1]
         inds = np.where(scores_all > 0.7)[0]
-        # todo: select topKs only if its needed < len(x)
         order = inds[np.argsort(scores_all[inds])[::-1][:5000]]
 
         count = 0

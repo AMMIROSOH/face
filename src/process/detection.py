@@ -1,6 +1,6 @@
 from multiprocessing import Queue, shared_memory
 import numpy as np
-from inference import Inference, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
+from inference import Inference, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, DETECTION_LENGTH, FRAME_SHAPE
 from constants import GLOBAL_MESSAGE_LENGTH
 
 def face_detection(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
@@ -13,9 +13,9 @@ def face_detection(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     shm_info_out = shared_memory.SharedMemory(name=shm_info_out)
 
     global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
-    frame_in = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
-    frame_out = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_out.buf)
-    info_out = np.ndarray((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH), dtype=np.float32, buffer=shm_info_out.buf)
+    frame_in = np.ndarray(FRAME_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
+    frame_out = np.ndarray(FRAME_SHAPE, dtype=np.uint8, buffer=shm_frame_out.buf)
+    info_out = np.ndarray(((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH) * DETECTION_LENGTH), dtype=np.float32, buffer=shm_info_out.buf)
 
     while global_message[0]:
         q_in.get()

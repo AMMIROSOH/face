@@ -3,18 +3,18 @@ import numpy as np
 import cv2 as cv
 from utils.paint import draw_fps
 import time
-from inference import IMAGE_SHAPE
-from inference import LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
-from constants import GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE, IMAGE_SHAPE_GUI
+from inference import FRAME_SHAPE
+from inference import LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, FRAME_SHAPE
+from constants import GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE, FRAME_SHAPE_GUI
 
 def gui(shms: tuple[str, ...], q_in: Queue):
-    info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800)*MAX_PEOPLE, )
+    info_shape = ((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)*MAX_PEOPLE, )
     shm_global_msg, shm_frame_in, shm_info_in, shm_cap_gui_frame = shms
     shm_frame_in = shared_memory.SharedMemory(name=shm_frame_in)
     shm_info_in = shared_memory.SharedMemory(name=shm_info_in)
     shm_global_msg = shared_memory.SharedMemory(name=shm_global_msg)
 
-    gui_frame_in = np.ndarray(IMAGE_SHAPE_GUI, dtype=np.uint8, buffer=shm_cap_gui_frame.buf)
+    gui_frame_in = np.ndarray(FRAME_SHAPE_GUI, dtype=np.uint8, buffer=shm_cap_gui_frame.buf)
     info_in = np.ndarray(info_shape, dtype=np.float32, buffer=shm_info_in.buf)
     global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
 
@@ -26,16 +26,16 @@ def gui(shms: tuple[str, ...], q_in: Queue):
 
         if(count>0):
             loc, lands, conf = np.split(info_in[0:count*15], [4 * count, 14 * count])
-            loc = loc.reshape(count, 4).astype(int)
-            lands = lands.reshape(count, 10).astype(int)
+            loc = loc.reshape(count, LOC_LENGTH).astype(int)
+            lands = lands.reshape(count, LANDS_LENGTH).astype(int)
             conf = conf.reshape(count, 1)
 
-            loc[:, 0] = loc[:, 0] * IMAGE_SHAPE_GUI[1] / IMAGE_SHAPE[1]
-            loc[:, 2] = loc[:, 2] * IMAGE_SHAPE_GUI[1] / IMAGE_SHAPE[1]
-            loc[:, 1] = loc[:, 1] * IMAGE_SHAPE_GUI[0] / IMAGE_SHAPE[0]
-            loc[:, 3] = loc[:, 3] * IMAGE_SHAPE_GUI[0] / IMAGE_SHAPE[0]
-            lands[:, 0::2] = lands[:, 0::2] * IMAGE_SHAPE_GUI[1] / IMAGE_SHAPE[1]
-            lands[:, 1::2] = lands[:, 1::2] * IMAGE_SHAPE_GUI[0] / IMAGE_SHAPE[0]
+            loc[:, 0] = loc[:, 0] * FRAME_SHAPE_GUI[1] / FRAME_SHAPE[1]
+            loc[:, 2] = loc[:, 2] * FRAME_SHAPE_GUI[1] / FRAME_SHAPE[1]
+            loc[:, 1] = loc[:, 1] * FRAME_SHAPE_GUI[0] / FRAME_SHAPE[0]
+            loc[:, 3] = loc[:, 3] * FRAME_SHAPE_GUI[0] / FRAME_SHAPE[0]
+            lands[:, 0::2] = lands[:, 0::2] * FRAME_SHAPE_GUI[1] / FRAME_SHAPE[1]
+            lands[:, 1::2] = lands[:, 1::2] * FRAME_SHAPE_GUI[0] / FRAME_SHAPE[0]
 
 
             for i in range(count):

@@ -4,12 +4,12 @@ import numpy as np
 import time
 import cv2 as cv
 from utils.qdrant import search_vec
-from inference import Inference, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, IMAGE_SHAPE
+from inference import Inference, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, FRAME_SHAPE
 from constants import GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
 
 def face_recognition_wihtout_track(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     arcModel = Inference(model="arcface-r100-glint360k_fp16")
-    info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800)*MAX_PEOPLE, )
+    info_shape = ((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH/16800)*MAX_PEOPLE, )
 
     shm_global_msg, shm_frame_in, shm_info_in, shm_frame_out, shm_info_out, shm_vec_out = shms
     shm_frame_in = shared_memory.SharedMemory(name=shm_frame_in)
@@ -18,9 +18,9 @@ def face_recognition_wihtout_track(shms: tuple[str, ...], q_in: Queue, q_out: Qu
     shm_info_out = shared_memory.SharedMemory(name=shm_info_out)
     shm_global_msg = shared_memory.SharedMemory(name=shm_global_msg)
 
-    frame_in = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
+    frame_in = np.ndarray(FRAME_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
     info_in = np.ndarray(info_shape, dtype=np.float32, buffer=shm_info_in.buf)
-    frame_out = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_out.buf)
+    frame_out = np.ndarray(FRAME_SHAPE, dtype=np.uint8, buffer=shm_frame_out.buf)
     info_out = np.ndarray(info_shape, dtype=np.float32, buffer=shm_info_out.buf)
     global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
 
@@ -80,7 +80,7 @@ def face_recognition_wihtout_track(shms: tuple[str, ...], q_in: Queue, q_out: Qu
 def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     tracker = BYTETracker(args={"track_thresh": 0.5, "match_thresh": 0.7, "track_buffer": 30, "mot20": False })
     arcModel = Inference(model="arcface-r100-glint360k_fp16")
-    info_shape = (int((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)/16800)*MAX_PEOPLE, )
+    info_shape = ((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH/16800)*MAX_PEOPLE, )
 
     shm_global_msg, shm_frame_in, shm_info_in, shm_frame_out, shm_info_out = shms
     shm_frame_in = shared_memory.SharedMemory(name=shm_frame_in)
@@ -89,9 +89,9 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     shm_info_out = shared_memory.SharedMemory(name=shm_info_out)
     shm_global_msg = shared_memory.SharedMemory(name=shm_global_msg)
 
-    frame_in = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
+    frame_in = np.ndarray(FRAME_SHAPE, dtype=np.uint8, buffer=shm_frame_in.buf)
     info_in = np.ndarray(info_shape, dtype=np.float32, buffer=shm_info_in.buf)
-    frame_out = np.ndarray(IMAGE_SHAPE, dtype=np.uint8, buffer=shm_frame_out.buf)
+    frame_out = np.ndarray(FRAME_SHAPE, dtype=np.uint8, buffer=shm_frame_out.buf)
     info_out = np.ndarray(info_shape, dtype=np.float32, buffer=shm_info_out.buf)
     global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
 
@@ -103,12 +103,12 @@ def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
             box_owners = []
             if(count>0):
                 loc, lands, conf = np.split(info_in[0:count*15], [4 * count, 14 * count])
-                loc = loc.reshape(count, 4).astype(int)
-                lands = lands.reshape(count, 10).astype(int)
+                loc = loc.reshape(count, LOC_LENGTH).astype(int)
+                lands = lands.reshape(count, LANDS_LENGTH).astype(int)
                 conf = conf.reshape(count, 1).astype(float)
 
                 track_data = np.concatenate([loc, conf], axis=1)
-                online_tracks = tracker.update(track_data, [IMAGE_SHAPE[0], IMAGE_SHAPE[1]], [IMAGE_SHAPE[0], IMAGE_SHAPE[1]])
+                online_tracks = tracker.update(track_data, [FRAME_SHAPE[0], FRAME_SHAPE[1]], [FRAME_SHAPE[0], FRAME_SHAPE[1]])
                 count_inf = 0
                 count = len(online_tracks)
                 for i, track in enumerate(online_tracks):

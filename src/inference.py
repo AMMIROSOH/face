@@ -6,8 +6,8 @@ from typing import Literal
 import numpy as np
 from constants import MAX_PEOPLE
 
-LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH = 67200, 33600, 168000
-IMAGE_SHAPE = (640, 640, 3)
+LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, DETECTION_LENGTH = 4, 2, 10, 16800 
+FRAME_SHAPE = (640, 640, 3)
 
 class Inference:
     def __init__(self, model: Literal["RetinaFace-R50_fp16", "arcface-r100-glint360k_fp16"]):
