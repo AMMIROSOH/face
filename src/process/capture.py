@@ -33,4 +33,5 @@ def capture(shms: tuple[str, ...], q_out: Queue):
     except Exception as e:
         print(e)
         global_message[0] = 0
+        q_out.put(0, False)
 
