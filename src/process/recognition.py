@@ -80,7 +80,7 @@ def face_recognition_wihtout_track(shms: tuple[str, ...], q_in: Queue, q_out: Qu
 def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     tracker = BYTETracker(args={"track_thresh": 0.5, "match_thresh": 0.7, "track_buffer": 30, "mot20": False })
     arcModel = Inference(model="arcface-r100-glint360k_fp16")
-    info_shape = ((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH/16800)*MAX_PEOPLE, )
+    info_shape = ((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)*MAX_PEOPLE, )
 
     shm_global_msg, shm_frame_in, shm_info_in, shm_frame_out, shm_info_out = shms
     shm_frame_in = shared_memory.SharedMemory(name=shm_frame_in)
