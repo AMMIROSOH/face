@@ -42,12 +42,15 @@ def gui(shms: tuple[str, ...], q_in: Queue):
                 if conf[i][0] < 0.6:
                     continue
                 text = "{:.2f}".format(conf[i][0])
-                cv.rectangle(gui_frame_temp, (loc[i][0], loc[i][1]), (loc[i][2], loc[i][3]), (0, 0, 255), 2)
                 cx = loc[i][0]
                 cy = loc[i][1] + 12
+                color = (0, 0, 255)
                 if("unkown" not in box_owners[i]):
+                    color = (0, 255, 0)
                     cv.putText(gui_frame_temp, box_owners[i], (cx, cy),
                                 cv.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
+                    
+                cv.rectangle(gui_frame_temp, (loc[i][0], loc[i][1]), (loc[i][2], loc[i][3]), color, 2)
                 # cv.putText(gui_frame_temp, text, (cx, cy + 15),
                 #             cv.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255))
 

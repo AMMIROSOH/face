@@ -3,7 +3,7 @@ import numpy as np
 from inference import Inference, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, DETECTION_LENGTH, FRAME_SHAPE
 from constants import GLOBAL_MESSAGE_LENGTH
 
-def face_detection(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
+def detection(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     retinaModel = Inference(model="RetinaFace-R50_fp16")
     shm_global_msg, shm_frame_in, shm_frame_out, shm_info_out = shms
 

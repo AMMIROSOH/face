@@ -7,7 +7,7 @@ from utils.qdrant import search_vec
 from inference import Inference, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, FRAME_SHAPE
 from constants import GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
 
-def face_recognition_wihtout_track(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
+def recognition_wihtout_track(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     arcModel = Inference(model="arcface-r100-glint360k_fp16")
     info_shape = ((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH/16800)*MAX_PEOPLE, )
 
@@ -77,7 +77,7 @@ def face_recognition_wihtout_track(shms: tuple[str, ...], q_in: Queue, q_out: Qu
         info_out[:] = info_in
         q_out.put((count, box_owners))
 
-def face_recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
+def recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     tracker = BYTETracker(args={"track_thresh": 0.5, "match_thresh": 0.7, "track_buffer": 30, "mot20": False })
     arcModel = Inference(model="arcface-r100-glint360k_fp16")
     info_shape = ((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH)*MAX_PEOPLE, )

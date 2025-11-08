@@ -7,7 +7,7 @@ from inference import LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, DETECTION_LENGTH, F
 from constants import GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
 from utils.retinaface import PriorBox, decode, decode_landm
 
-def face_candidates(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
+def candidates(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     info_shape = ((LOC_LENGTH + CONF_LENGTH + LANDS_LENGTH) * MAX_PEOPLE, )
 
