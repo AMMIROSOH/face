@@ -1,17 +1,27 @@
-[tool.poetry]
+[project]
 name = "face"
 version = "0.1.0"
-description = "face detection | recognition project"
-authors = ["AmirHossein Sohrabi <a.sohrabi1380@gmail.com>"]
+description = "realtime face recognition system"
+authors = [
+    {name = "AMMIROSOH",email = "52034721+AMMIROSOH@users.noreply.github.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+    "numpy (==2.2.6)",
+    "tensorrt (>=10.14.1.48.post1,<11.0.0.0)",
+    "opencv-python (>=4.12.0.88,<5.0.0.0)",
+    "scipy (>=1.8,<2.0.0)",
+    "qdrant-client (>=1.15.1,<2.0.0)",
+    "dotenv (>=0.9.9,<0.10.0)",
+    "lap (>=0.5.12,<0.6.0)"
+]
 
 
-packages = [{ include = "src" }]
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
 
-[tool.poetry.scripts]
-dev = "src.main:main"
-
-[tool.poetry.dependencies]
-python = "^3.12"
-numpy = "^2.3.3"
-
-[tool.poetry.group.dev.dependencies]
+[tool.poetry]
+package-mode = false
