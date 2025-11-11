@@ -4,6 +4,7 @@ import numpy as np
 import time
 import cv2 as cv
 from utils.qdrant import search_vec
+from utils.arcface import estimate_norm
 from inference import Inference, LOC_LENGTH, CONF_LENGTH, LANDS_LENGTH, FRAME_SHAPE
 from constants import GLOBAL_MESSAGE_LENGTH, MAX_PEOPLE
 
@@ -122,6 +123,8 @@ def recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
                             continue
                         cv.resize(frame_in[y1:y2, x1:x2], (112, 112), dst=face_temp)
                         cv.cvtColor(face_temp, cv.COLOR_BGR2RGB, dst=face_temp)
+                        face_lands_norm = estimate_norm(lands[track.detection_index])
+                        cv.warpAffine(face_temp, face_lands_norm, (112, 112), flags=cv.INTER_LINEAR, dst=face_temp)
                         face = np.transpose(face_temp / 127.5 - 1.0, (2,0,1)).astype(np.float32)              
                         # cv.imwrite("asd.jpg", frame_in[y1:y2, x1:x2]) # EASTER EGG
                         vector = arcModel.infer(face)[0][0]
