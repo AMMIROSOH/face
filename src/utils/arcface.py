@@ -9,8 +9,8 @@ LANDS_TEMPLATE = np.array([
     [62.7299, 92.2041],  # right mouth
 ], dtype=np.float32)
 
-def estimate_norm(landmarks, image_size=IMG_SIZE, template=LANDS_TEMPLATE):
+def estimate_norm(landmarks, template=LANDS_TEMPLATE):
     src = np.array(landmarks, dtype=np.float32)
     dst = template.copy()
-    tform = estimateAffinePartial2D(src, dst, method=LMEDS)[0]
+    tform = estimateAffinePartial2D(src.reshape((5, 2)), dst, method=LMEDS)[0]
     return tform

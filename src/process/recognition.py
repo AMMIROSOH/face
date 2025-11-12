@@ -97,6 +97,7 @@ def recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
     global_message = np.ndarray((GLOBAL_MESSAGE_LENGTH), dtype=np.uint8, buffer=shm_global_msg.buf)
 
     face_temp = np.zeros((112, 112, 3), np.uint8)
+    frame_temp = np.zeros(frame_in.shape, np.uint8)
     frame_count = 0
     while global_message[0]:
         try:
@@ -114,26 +115,24 @@ def recognition(shms: tuple[str, ...], q_in: Queue, q_out: Queue):
                 count = len(online_tracks)
                 for i, track in enumerate(online_tracks):
                     box = loc[track.detection_index]
-                    if count_inf < 1 and ((track.vector is None )
+                    if count_inf < 1 and ((track.vector is None)
                         or (track.person_name == "unkown" 
                             and track.vector_try_frame + track.vector_tries * 10 <= frame_count)):
                         count_inf += 1
                         x1, y1, x2, y2 = box.astype(int)
                         if(y2-y1<=0 or x2-x1<=0):
                             continue
-                        cv.resize(frame_in[y1:y2, x1:x2], (112, 112), dst=face_temp)
-                        cv.cvtColor(face_temp, cv.COLOR_BGR2RGB, dst=face_temp)
+                        # cv.resize(frame_in[y1:y2, x1:x2], (112, 112), dst=face_temp)
+                        cv.cvtColor(frame_in, cv.COLOR_BGR2RGB, dst=frame_temp)
                         face_lands_norm = estimate_norm(lands[track.detection_index])
-                        cv.warpAffine(face_temp, face_lands_norm, (112, 112), flags=cv.INTER_LINEAR, dst=face_temp)
+                        cv.warpAffine(frame_temp, face_lands_norm, (112, 112), flags=cv.INTER_LINEAR, dst=face_temp)
                         face = np.transpose(face_temp / 127.5 - 1.0, (2,0,1)).astype(np.float32)              
                         # cv.imwrite("asd.jpg", frame_in[y1:y2, x1:x2]) # EASTER EGG
                         vector = arcModel.infer(face)[0][0]
-                        norm = np.linalg.norm(vector)
-                        vector = vector/norm
                         track.vector = vector
 
                         results = search_vec(vector.tolist())
-                        if(len(results) > 0 and results[0].score > 0.6):
+                        if(len(results) > 0 and results[0].score > 0.5):
                             hit = results[0]
                             track.person_name = hit.payload.get("name", "unkown")
                         track.vector_tries += 1 
