@@ -19,6 +19,7 @@ def capture(shms: tuple[str, ...], q_out: Queue):
     if not cap.isOpened():
         print(f"ERROR: Cannot find camera or movie")
         global_message[0] = 0
+        q_out.put(0, False)
         return
     
     desired_fps = 60 
