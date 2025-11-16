@@ -3,8 +3,13 @@
 > Optimized real-time face recognition combining **RetinaFace** (detector) + **ArcFace** (re-identification/embedding) + a customized **ByteTrack** tracker — all served with **TensorRT** engines and Python `multiprocessing` for maximum throughput.
 > Capable of ~**80 FPS** on a properly provisioned NVIDIA GPU (see *Performance & Tuning*).
 
-![GIF placeholder](./assets/placeholder.gif)
-*(Replace `./assets/placeholder.gif` with your demo GIF when ready.)*
+<!-- todo: fix video thumbnail -->
+<video controls>
+  <source src="readme.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
+<!-- [Watch Demo](readme.mp4) -->
 
 ---
 
@@ -15,14 +20,11 @@
 * [Installation](#installation)
 * [Running Qdrant (vector DB)](#running-qdrant-vector-db)
 * [Build TensorRT engine files](#build-tensorrt-engine-files)
-* [Running the project](#running-the-project)
 * [Configuration / `.env` example](#configuration--env-example)
-* [Usage examples](#usage-examples)
+* [Running the project](#running-the-project)
 * [Performance & tuning tips](#performance--tuning-tips)
 * [Architecture overview](#architecture-overview)
-* [Troubleshooting](#troubleshooting)
 * [Contributing](#contributing)
-* [License](#license)
 
 ---
 
@@ -98,40 +100,23 @@ If you prefer the default host port `6333`, change the `-p` mapping and `.env` a
 
 The project expects TensorRT `.engine` files for both RetinaFace and ArcFace. You can create them from ONNX (or another intermediate) using `trtexec` or the TensorRT Python API.
 
-Example using `trtexec` (adjust paths / options for your models):
+1. make onnx models from .pt model files from `testbench/create_engine.ipynb`.
 
+2. create tensorrt engines with commands below at `checkpoints/`:
 ```bash
-# RetinaFace (example)
-trtexec --onnx=retinaface.onnx --saveEngine=retinaface.engine --fp16 --workspace=2048 --explicitBatch
+cd checkpoints
 
-# ArcFace (example)
-trtexec --onnx=arcface.onnx --saveEngine=arcface.engine --fp16 --workspace=2048 --explicitBatch
+# RetinaFace
+!trtexec  --onnx=RetinaFace-R50.onnx --saveEngine=RetinaFace-R50_fp16.engine --fp16
+
+# ArcFace
+!trtexec  --onnx=arcface-r100-glint360k.onnx --saveEngine=arcface-r100-glint360k_fp16.engine --fp16
 ```
 
 Notes:
 
 * Use `--fp16` for faster inference where supported; use `--int8` only if you provide a calibration dataset.
-* `--workspace` (MB) may need to increase for large models or optimizations.
 * The exact conversion flow depends on your ONNX export settings — make sure the ONNX opset and layer compatibility are correct.
-
-Place the generated `.engine` files into your project `models/` directory or point the config to their locations.
-
----
-
-## Running the project
-
-There is a convenience PowerShell script `dev.ps1` to start the project in development mode.
-
-From PowerShell:
-
-```powershell
-# run the dev helper
-.\dev.ps1
-```
-
-(If you are on Linux/Mac, use the project’s provided run script or run the Python entrypoint directly, e.g. `python -m app.main` — check your repository's `pyproject.toml` or `scripts/` directory.)
-
-The project accepts both a video file or a network/webcam stream as input.
 
 ---
 
@@ -141,7 +126,8 @@ Create a `.env` in the project root (or set equivalent environment variables):
 
 ```env
 # .env example
-VIDEO_SOURCE=http://192.168.1.102:4747/video   # or a file path like "test_madrid.mov" or "0" for default webcam
+VIDEO_SOURCE=http://192.168.1.102:4747/video   # or a file path like "test_madrid.mov" or "0" for default webcam or
+VIDEO_SOURCE=rtsp://{user}:{password}@{host}:{port}/Stream/Live/101
 QDRANT_HOST=localhost
 QDRANT_PORT=6334
 # Optional tuning vars you may find in the project:
@@ -155,7 +141,7 @@ The app reads `VIDEO_SOURCE` and Qdrant connection info from the environment at 
 
 ---
 
-## Usage examples
+## Running the project
 
 * Feed from an IP camera or smartphone stream:
 
@@ -178,6 +164,8 @@ export VIDEO_SOURCE="0"
 .\dev.ps1
 ```
 
+(If you are on Linux/Mac, use the project’s provided run script or run the Python entrypoint directly, e.g. `python -m app.main` — check your repository's `pyproject.toml` or `scripts/` directory.)
+
 ---
 
 ## Performance & tuning tips
@@ -198,21 +186,21 @@ export VIDEO_SOURCE="0"
   * ByteTrack parameters (e.g., detection confidence thresholds, embedding distance thresholds) drastically affect both performance and track stability. Tune them based on your scenario.
 * **Profiling**:
 
-  * Measure per-stage latency (capture → preprocess → detect → embed → track → DB write) to identify bottlenecks.
+  * Measure per-stage latency (capture → detection → candidates → recognition → gui) to identify bottlenecks.
 
 ---
 
 ## Architecture overview
 
-Simple pipeline (process boundaries may vary per your implementation):
 
 ```
 [Capture Process] --> frames queue -->
 [Detection Process (TensorRT RetinaFace)] --> detections queue -->
-[Embedding Process (TensorRT ArcFace)] --> embeddings queue -->
-[Tracking Process (ByteTrack + matching)] --> results
+[Detection Post Process (NMS + other things)] --> candidates queue -->
+[Recognition Process (TensorRT ArcFace + ByteTrack)] --> recognition queue -->
                                       \
                                        --> [Qdrant client] (store / query embeddings)
+[GUI Process] --> gui queue                                   
 ```
 
 Each stage runs in its own Python process to use multiple CPU cores while keeping the GPU busy with inference.
@@ -245,37 +233,6 @@ Contributions are welcome. Please open issues for bugs or feature requests. For 
 
 1. Fork the repository
 2. Create a topic branch
-3. Run `poetry install` and ensure tests pass (if present)
-4. Submit a pull request with a clear description of changes
+3. Submit a pull request with a clear description of changes
 
 Add unit tests for new logic paths where possible.
-
----
-
-## TODO / Roadmap
-
-* Replace GIF placeholder with a short demo GIF / video.
-* Add INT8 calibration pipeline for further acceleration.
-* Add a lightweight web UI for live preview and manual labeling.
-* Add automated benchmark script with common hardware profiles.
-
----
-
-## License
-
-Specify your license here (e.g., MIT). Example:
-
-```
-MIT License
-Copyright (c) YEAR Your Name
-```
-
----
-
-If you want, I can:
-
-* generate a polished GIF placeholder and add the correct markdown snippet, or
-* create a `scripts/build_engine.sh` and `scripts/run_qdrant.sh` helper files with the exact commands used above, or
-* produce a short CONTRIBUTING.md or CHANGELOG.md to go with this README.
-
-Which of those would you like me to add next?
