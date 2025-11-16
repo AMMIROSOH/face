@@ -5,7 +5,7 @@
 
 <!-- todo: fix video thumbnail -->
 <video controls>
-  <source src="https://github.com/AMMIROSOH/face/raw/refs/heads/main/readme.mp4" type="video/mp4">
+  <source src="https://raw.githubusercontent.com/AMMIROSOH/face/refs/heads/main/readme.mp4?token=GHSAT0AAAAAADBWQYER77SHDH2RX5FJD5NE2IZXAVQ" type="video/mp4">
   Your browser does not support the video tag.
 </video>
 
