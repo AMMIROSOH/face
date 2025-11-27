@@ -3,13 +3,7 @@
 > Optimized real-time face recognition combining **RetinaFace** (detector) + **ArcFace** (re-identification/embedding) + a customized **ByteTrack** tracker — all served with **TensorRT** engines and Python `multiprocessing` for maximum throughput.
 > Capable of ~**80 FPS** on a properly provisioned NVIDIA GPU (see *Performance & Tuning*).
 
-<!-- todo: fix video thumbnail -->
-<video controls>
-  <source src="https://raw.githubusercontent.com/AMMIROSOH/face/refs/heads/main/readme.mp4?token=GHSAT0AAAAAADBWQYER77SHDH2RX5FJD5NE2IZXAVQ" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-
-<!-- [Watch Demo](readme.mp4) -->
+![Alt Text](readme.gif)
 
 ---
 
@@ -23,6 +17,7 @@
 * [Configuration / `.env` example](#configuration--env-example)
 * [Running the project](#running-the-project)
 * [Performance & tuning tips](#performance--tuning-tips)
+* [Minimum Requirment & Run tests](#minimum--requirments)
 * [Architecture overview](#architecture-overview)
 * [Contributing](#contributing)
 
@@ -80,6 +75,10 @@ poetry shell
 
 ---
 
+4. **Insert vector**
+
+after running Qdrant, you can use `qdrantInsertPerson.ipynb` to insert persons into qdrant database.
+
 ## Running Qdrant (vector DB)
 
 Run a Qdrant container to store and search face embeddings. The container exposes the internal Qdrant port (`6333`) — map it to the host port you prefer (your `.env` in examples uses host port `6334`).
@@ -99,6 +98,10 @@ If you prefer the default host port `6333`, change the `-p` mapping and `.env` a
 ## Build TensorRT engine files
 
 The project expects TensorRT `.engine` files for both RetinaFace and ArcFace. You can create them from ONNX (or another intermediate) using `trtexec` or the TensorRT Python API.
+
+1. download retinaface`RetinaFace-R50.pth` and arcface `arcface-r100-glint360k.pth` files from any source you can.
+- https://huggingface.co/camenduru/video-retalking/blob/main/RetinaFace-R50.pth
+- https://huggingface.co/BooBooWu/Vec2Face/blob/c701064b38ef354f9d56303d6efb6afec8023dd4/weights/arcface-r100-glint360k.pth
 
 1. make onnx models from .pt model files from `testbench/create_engine.ipynb`.
 
@@ -187,6 +190,37 @@ export VIDEO_SOURCE="0"
 * **Profiling**:
 
   * Measure per-stage latency (capture → detection → candidates → recognition → gui) to identify bottlenecks.
+
+---
+
+## Minimum Requirements & Run Tests
+
+### Minimum hardware requirements
+To run the system reliably in real time, you need at least:
+
+- **GPU:** NVIDIA GPU with **3 GB** of CUDA VRAM (minimum for RetinaFace + ArcFace TensorRT engines)  
+- **CPU:** Modern quad-core CPU (more cores improve multiprocessing throughput)  
+- **RAM:** 8 GB system memory (more recommended for multi-stream processing)  
+- **Disk:** SSD recommended for fast video loading and model initialization  
+- **Software:**  
+  - CUDA-compatible NVIDIA driver  
+  - TensorRT installed  
+  - Python 3.9+  
+  - Docker (for Qdrant)
+
+---
+
+### Performance benchmarks
+
+Measured on **HD video (1280×720)** using FP16 TensorRT engines:
+
+| CPU                  | GPU                       | GPU VRAM | FPS (HD Video)                   | Notes |
+|----------------------|----------------------------|----------|----------------------------------|-------|
+| **Core i5-4790K**    | **GTX 1660 Ti (6 GB)**     | 6 GB     | **~40 FPS**                      | Stable real-time performance |
+| **Core i7-14700**    | **RTX 4080 SUPER (16 GB)** | 16 GB    | **~60 FPS (capped)**             | System can exceed **100+ FPS**, capped at **60 FPS** for stability |
+
+> High-end GPUs can push well beyond 100 FPS. For production workloads, capping FPS (e.g., 60–80) helps maintain consistent latency and overall system stability, you can inform me from your own tests.
+
 
 ---
 

@@ -1,5 +1,6 @@
 *.mp4
 *.MOV
+*.MP3
 src/*.jpg
 
 /testbench/img/*
